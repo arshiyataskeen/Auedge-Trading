@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XAUUSD Live Chart</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b35; --text: #d6dae1; --muted: #8a92a0;
+    --up: #26a69a; --down: #ef5350; --warn: #f0b429; --accent: #4c8dff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px;
+           padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #price { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .fresh { background: rgba(38,166,154,.18); color: var(--up); }
+  .stale { background: rgba(240,180,41,.18); color: var(--warn); }
+  .down  { background: rgba(239,83,80,.18); color: var(--down); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 16px; align-items: center; }
+  .group { display: flex; gap: 4px; flex-wrap: wrap; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+           padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  #wrap { position: relative; height: calc(100vh - 230px); min-height: 320px; margin: 0 16px;
+          border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  #chart { position: absolute; inset: 0; }
+  #srcLabel { position: absolute; top: 8px; left: 8px; z-index: 3; background: rgba(15,17,21,.85);
+              border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12px; max-width: 70%; }
+  #msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+         z-index: 4; background: rgba(15,17,21,.85); color: var(--warn); text-align: center; padding: 20px; }
+  footer { padding: 10px 16px 16px; color: var(--muted); font-size: 12px; }
+  footer b { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>XAU/USD</h1>
+  <span id="price">—</span>
+  <span id="fresh" class="badge stale">loading…</span>
+  <span class="meta" id="updated"></span>
+  <span class="meta" id="gap"></span>
+</header>
+
+<div class="controls">
+  <div class="group" id="srcGroup">
+    <button data-src="spot" class="on" title="Spot gold price, candles built from XAUS samples plus live updates">Spot (XAU/USD)</button>
+    <button data-src="fut" title="Real OHLC candles, but these are COMEX gold futures, not spot">Gold futures</button>
+  </div>
+  <div class="group" id="tfGroup"></div>
+  <span class="meta" id="poll"></span>
+</div>
+
+<div id="wrap">
+  <div id="chart"></div>
+  <div id="srcLabel"></div>
+  <div id="msg"></div>
+</div>
+
+<footer>
+  <b>Analysis only, not trading advice.</b> All XAUS prices are indicative mid-market reference rates, not tradable broker quotes.
+  Your broker's prices, entries and stops will differ by the spread. Spot price source: <span id="psrc">—</span> via xaus.com.
+  Candle times are shown in your computer's local time.
+</footer>
+
+<script>
+const API = "https://xaus.com/api/v1";
+const SPOT_POLL_MS = 15000;   // spot updates about once a minute upstream
+const FUT_POLL_MS  = 60000;   // futures candles are cached ~60 s by the API
+const STALE_AFTER_S = 180;    // our own staleness rule, based on updated_at vs now
+
+// Timeframes. Spot history comes from 2-min samples, so 1m spot is impossible.
+const TF = {
+  "1m":  { sec: 60,    spot: false, fut: { interval: "1m",  range: "1d"  } },
+  "5m":  { sec: 300,   spot: true,  fut: { interval: "5m",  range: "5d"  } },
+  "15m": { sec: 900,   spot: true,  fut: { interval: "15m", range: "5d"  } },
+  "30m": { sec: 1800,  spot: true,  fut: { interval: "30m", range: "1mo" } },
+  "1h":  { sec: 3600,  spot: true,  fut: { interval: "1h",  range: "3mo" } },
+  "4h":  { sec: 14400, spot: true,  fut: { interval: "1h",  range: "3mo", aggregate: true } },
+  "1d":  { sec: 86400, spot: false, fut: { interval: "1d",  range: "1y"  } },
+};
+
+const state = { src: "spot", tf: "15m", bars: [], lastSpot: null, token: 0, timer: null, sampleSec: 300 };
+// XAUS changed spot sampling from 2 min to 5 min once already, so read it live and
+// only offer spot timeframes whose candles contain at least 3 samples.
+const spotOk = name => TF[name].spot && TF[name].sec >= 3 * state.sampleSec;
+const tzShift = -new Date().getTimezoneOffset() * 60; // chart library shows UTC, so shift to local
+const $ = id => document.getElementById(id);
+
+// ---------- chart ----------
+const chart = LightweightCharts.createChart($("chart"), {
+  autoSize: true,
+  layout: { background: { type: "solid", color: "#0f1115" }, textColor: "#c9ced6" },
+  grid: { vertLines: { color: "#1c2029" }, horzLines: { color: "#1c2029" } },
+  rightPriceScale: { borderColor: "#262b35" },
+  timeScale: { borderColor: "#262b35", timeVisible: true, secondsVisible: false },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+});
+const candles = chart.addCandlestickSeries({
+  upColor: "#26a69a", downColor: "#ef5350", borderVisible: false,
+  wickUpColor: "#26a69a", wickDownColor: "#ef5350",
+});
+const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", color: "rgba(76,141,255,.35)" });
+chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+// ---------- helpers ----------
+async function getJSON(path) {
+  const r = await fetch(API + path, { cache: "no-store" });
+  if (r.status === 503) throw new Error("NO_PRICE");
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+const fmt = n => n == null ? "—" : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function ago(sec) {
+  if (sec < 90) return Math.round(sec) + " s ago";
+  if (sec < 5400) return Math.round(sec / 60) + " min ago";
+  if (sec < 172800) return (sec / 3600).toFixed(1) + " h ago";
+  return Math.round(sec / 86400) + " days ago";
+}
+function showMsg(text) { $("msg").style.display = text ? "flex" : "none"; $("msg").textContent = text || ""; }
+
+// Group raw points into candles of `sec` seconds. Each input has t plus either p (sample) or o/h/l/c/v (bar).
+function aggregate(points, sec) {
+  const out = [];
+  for (const pt of points) {
+    const t = Math.floor(pt.t / sec) * sec;
+    const o = pt.o ?? pt.p, h = pt.h ?? pt.p, l = pt.l ?? pt.p, c = pt.c ?? pt.p, v = pt.v ?? 0;
+    if (o == null || c == null) continue;
+    const last = out[out.length - 1];
+    if (last && last.time === t) {
+      last.high = Math.max(last.high, h); last.low = Math.min(last.low, l); last.close = c; last.volume += v;
+    } else {
+      out.push({ time: t, open: o, high: h, low: l, close: c, volume: v });
+    }
+  }
+  return out;
+}
+const toChart = b => ({ time: b.time + tzShift, open: b.open, high: b.high, low: b.low, close: b.close });
+
+function draw() {
+  candles.setData(state.bars.map(toChart));
+  volume.setData(state.src === "fut"
+    ? state.bars.map(b => ({ time: b.time + tzShift, value: b.volume, color: b.close >= b.open ? "rgba(38,166,154,.35)" : "rgba(239,83,80,.35)" }))
+    : []);
+  chart.timeScale().fitContent();
+}
+
+// ---------- spot price (header + live candle) ----------
+async function pollSpot() {
+  try {
+    const d = await getJSON("/spot?compact=1");
+    const price = d.spot_usd_oz ?? d.xau?.price;
+    const updatedSec = Date.parse(d.updated_at) / 1000;
+    const age = Date.now() / 1000 - updatedSec;
+    state.lastSpot = { price, t: updatedSec };
+
+    $("price").textContent = "$" + fmt(price);
+    $("psrc").textContent = d.price_source || "unknown";
+    $("updated").textContent = "Updated " + ago(age) + " · source: " + (d.price_source || "unknown");
+    const isFresh = age <= STALE_AFTER_S;
+    $("fresh").className = "badge " + (isFresh ? "fresh" : "stale");
+    $("fresh").textContent = isFresh ? "LIVE" : "STALE (market may be closed)";
+
+    if (state.src === "spot" && state.bars.length) addSpotTick(price, updatedSec);
+    updateGap();
+  } catch (e) {
+    $("fresh").className = "badge down";
+    $("fresh").textContent = e.message === "NO_PRICE" ? "NO PRICE AVAILABLE" : "CONNECTION PROBLEM";
+  }
+}
+
+function addSpotTick(price, t) {
+  const sec = TF[state.tf].sec;
+  const bucket = Math.floor(t / sec) * sec;
+  const last = state.bars[state.bars.length - 1];
+  if (bucket < last.time) return;                 // older than what we have
+  if (bucket === last.time) {
+    last.high = Math.max(last.high, price); last.low = Math.min(last.low, price); last.close = price;
+  } else {
+    state.bars.push({ time: bucket, open: price, high: price, low: price, close: price, volume: 0 });
+  }
+  candles.update(toChart(state.bars[state.bars.length - 1]));
+}
+
+function updateGap() {
+  if (state.src !== "fut" || !state.lastSpot || !state.bars.length) { $("gap").textContent = ""; return; }
+  const diff = state.bars[state.bars.length - 1].close - state.lastSpot.price;
+  $("gap").textContent = "Futures − spot: " + (diff >= 0 ? "+" : "") + fmt(diff) + " $";
+}
+
+// ---------- candle loading ----------
+async function loadSpot(token) {
+  const d = await getJSON("/intraday?symbol=xau&hours=48");
+  if (token !== state.token) return;
+  const pts = (d.points || []).filter(p => p.p != null);
+  if (!pts.length) throw new Error("No spot samples returned");
+  const gaps = pts.slice(-30).map((p, i, a) => i ? p.t - a[i - 1].t : 0).slice(1).sort((x, y) => x - y);
+  const measured = gaps.length ? Math.round(gaps[gaps.length >> 1] / 60) * 60 : 0;
+  state.sampleSec = Math.max(d.interval_seconds || 0, measured, 60);
+  if (!spotOk(state.tf)) { state.tf = Object.keys(TF).find(spotOk) || "1h"; }
+  buildTfButtons();
+  state.bars = aggregate(pts, TF[state.tf].sec);
+  if (state.lastSpot) addSpotTickSilently();
+  $("srcLabel").innerHTML = "<b>Spot XAU/USD</b> · candles aggregated from " + state.sampleSec / 60 + "-min samples (" +
+    (d.source || "xaus sampler") + ") + live price every " + SPOT_POLL_MS / 1000 + " s · last 48 h only";
+  draw();
+}
+function addSpotTickSilently() {
+  const { price, t } = state.lastSpot;
+  const sec = TF[state.tf].sec, bucket = Math.floor(t / sec) * sec, last = state.bars[state.bars.length - 1];
+  if (bucket === last.time) { last.high = Math.max(last.high, price); last.low = Math.min(last.low, price); last.close = price; }
+  else if (bucket > last.time) state.bars.push({ time: bucket, open: price, high: price, low: price, close: price, volume: 0 });
+}
+
+async function loadFutures(token) {
+  const cfg = TF[state.tf].fut;
+  const d = await getJSON(`/chart?symbol=xau&interval=${cfg.interval}&range=${cfg.range}`);
+  if (token !== state.token) return;
+  const pts = (d.points || []).filter(p => p.o != null && p.c != null);
+  if (!pts.length) throw new Error("No candles returned");
+  state.bars = cfg.aggregate ? aggregate(pts, TF[state.tf].sec)
+                             : pts.map(p => ({ time: p.t, open: p.o, high: p.h, low: p.l, close: p.c, volume: p.v || 0 }));
+  const lastBarAge = Date.now() / 1000 - pts[pts.length - 1].t;
+  $("srcLabel").innerHTML = "<b>Gold FUTURES (COMEX), not spot</b> · real OHLCV via Yahoo Finance proxy" +
+    (cfg.aggregate ? " · 4h built from 1h candles" : "") +
+    " · newest candle " + ago(lastBarAge) + " (Yahoo data is delayed)";
+  draw();
+  updateGap();
+}
+
+async function load() {
+  const token = ++state.token;
+  clearInterval(state.timer);
+  showMsg("Loading…");
+  try {
+    if (state.src === "spot") await loadSpot(token); else await loadFutures(token);
+    if (token === state.token) showMsg("");
+  } catch (e) {
+    if (token !== state.token) return;
+    state.bars = []; draw();
+    showMsg("Candles unavailable right now (" + e.message + "). Nothing is shown rather than made-up candles. Retrying in 60 s.");
+  }
+  if (state.src === "fut") state.timer = setInterval(() => loadFutures(state.token).catch(() => {}), FUT_POLL_MS);
+  $("poll").textContent = state.src === "spot"
+    ? "Live price checked every 15 s (it changes about once a minute)"
+    : "Futures candles refreshed every 60 s";
+}
+
+// ---------- controls ----------
+function buildTfButtons() {
+  const g = $("tfGroup"); g.innerHTML = "";
+  for (const [name, cfg] of Object.entries(TF)) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    const ok = state.src === "spot" ? spotOk(name) : true;
+    b.disabled = !ok;
+    if (!ok) b.title = cfg.spot || name === "1m"
+      ? `Unavailable for spot: prices are sampled every ${state.sampleSec / 60} min, so ${name} candles would hold fewer than 3 prices`
+      : "Unavailable for spot: only 48 hours of spot samples exist";
+    if (name === state.tf) b.classList.add("on");
+    b.onclick = () => { state.tf = name; buildTfButtons(); load(); };
+    g.appendChild(b);
+  }
+}
+$("srcGroup").addEventListener("click", e => {
+  const src = e.target.dataset?.src; if (!src || src === state.src) return;
+  state.src = src;
+  for (const b of $("srcGroup").children) b.classList.toggle("on", b.dataset.src === src);
+  if (src === "spot" && !spotOk(state.tf)) state.tf = Object.keys(TF).find(spotOk) || "1h";
+  buildTfButtons(); load();
+});
+
+buildTfButtons();
+pollSpot().then(load);
+setInterval(pollSpot, SPOT_POLL_MS);
+setInterval(() => { if (state.bars.length === 0) load(); }, 60000); // retry after failures
+</script>
+</body>
+</html>

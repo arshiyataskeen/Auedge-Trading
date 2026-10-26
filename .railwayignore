@@ -1,0 +1,13 @@
+# Not uploaded to Railway: local Python, secrets, PC-only scripts, and the live data folder
+# (the data comes along once as deploy/seed, made by tools/make-seed.ps1).
+.venv/
+__pycache__/
+**/__pycache__/
+.env
+.claude/
+data/
+research/
+tools/
+*.lnk
+*.bat
+xauusd-chart.html

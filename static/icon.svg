@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AuEdge">
+  <defs>
+    <radialGradient id="face" cx="0.38" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#FFE7A3"/>
+      <stop offset="0.55" stop-color="#F2BE45"/>
+      <stop offset="1" stop-color="#C9901F"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#131722"/>
+  <!-- gold coin: rim, face, reeded edge -->
+  <circle cx="32" cy="32" r="22" fill="#B07A12"/>
+  <circle cx="32" cy="32" r="18.5" fill="url(#face)"/>
+  <circle cx="32" cy="32" r="18.5" fill="none" stroke="#FFE7A3" stroke-width="1.2" stroke-dasharray="2 2.2"/>
+  <text x="32" y="38.5" text-anchor="middle" font-family="Trebuchet MS, Arial, sans-serif" font-size="17"
+        font-weight="700" fill="#3A2600">Au</text>
+  <!-- the "edge": a rising green arrow -->
+  <path d="M38 22 L52 9" stroke="#089981" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M44 9.5 L52 9 L51.5 17" fill="none" stroke="#089981" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

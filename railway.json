@@ -1,0 +1,9 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "startCommand": "sh deploy/start.sh",
+    "healthcheckPath": "/icon.svg",
+    "healthcheckTimeout": 120,
+    "restartPolicyType": "ALWAYS"
+  }
+}

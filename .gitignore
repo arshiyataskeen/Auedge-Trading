@@ -1,0 +1,18 @@
+# --- never upload these to GitHub ---
+# secrets (API keys, passwords)
+.env
+# your private records: journal, demo trades, analysis history, candle cache, backups
+data/
+# your PC data copied for a first Railway start (tools/make-seed.ps1). Only add it on purpose, to a PRIVATE repo:
+#   git add -f deploy/seed
+deploy/seed/
+# local Python, caches, editor and Claude settings
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.claude/
+# Windows shortcuts and logs
+*.lnk
+*.log
+*.tmp

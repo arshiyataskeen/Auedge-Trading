@@ -1,0 +1,2385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#131722">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AuEdge">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>AuEdge · XAUUSD</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>try { if (localStorage.getItem("theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}</script>
+<style>
+  /* TradingView-style app: top toolbar, chart, right panel, right icon strip. Desktop is one fixed screen. */
+  :root {
+    --app: #0b0d12; --bg: #131722; --panel2: #1e222d; --hover: #2a2e39; --line: #2a2e39; --line2: #363a45;
+    --text: #d1d4dc; --muted: #787b86; --faint: #5d606b; --accent: #2962ff; --accent2: #1e53e5;
+    --up: #089981; --down: #f23645; --warn: #ff9800;
+    --up-bg: rgba(8,153,129,.15); --down-bg: rgba(242,54,69,.15); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.16);
+    --strong: #fff; --rowhover: #171b26; --rowhover2: #1b2030; --scrim: rgba(0,0,0,.6); --glass: rgba(19,23,34,.97);
+    --chart-text: #b2b5be; --chart-grid: rgba(42,46,57,.6);
+  }
+  :root[data-theme="light"] {
+    --app: #e0e3eb; --bg: #ffffff; --panel2: #f0f3fa; --hover: #e9ecf2; --line: #e0e3eb; --line2: #d1d4dc;
+    --text: #131722; --muted: #6a6d78; --faint: #9598a1;
+    --up-bg: rgba(8,153,129,.12); --down-bg: rgba(242,54,69,.10); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.10);
+    --strong: #131722; --rowhover: #f0f3fa; --rowhover2: #e9eefb; --scrim: rgba(19,23,34,.35); --glass: rgba(255,255,255,.97);
+    --chart-text: #131722; --chart-grid: rgba(224,227,235,.9);
+  }
+  :root[data-theme="light"] .warn { color: #e65100; }
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body { margin: 0; background: var(--app); color: var(--text);
+         font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+         -webkit-font-smoothing: antialiased; font-feature-settings: "tnum"; }
+  #app { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .warn { color: var(--warn); }
+  .clamp1, .clamp2, .clamp3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .clamp1 { -webkit-line-clamp: 1; } .clamp2 { -webkit-line-clamp: 2; } .clamp3 { -webkit-line-clamp: 3; }
+
+  /* Buttons: flat like TradingView's toolbar */
+  button { background: transparent; color: var(--text); border: 0; border-radius: 4px; padding: 6px 9px; cursor: pointer;
+           font: inherit; font-size: 13px; line-height: 1.2; transition: background .12s, color .12s; }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button.on { color: var(--accent); background: transparent; }
+  button.primary { background: var(--accent); color: #fff; font-weight: 600; padding: 6px 12px; }
+  button.primary:hover:not(:disabled) { background: var(--accent2); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  a.btnlink { text-decoration: none; }
+  label.chk { font-size: 13px; color: var(--text); display: flex; gap: 6px; align-items: center; cursor: pointer; padding: 0 6px; }
+  label.chk input { accent-color: var(--accent); }
+
+  /* Top toolbar */
+  header.top { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; min-height: 46px; padding: 4px 8px;
+               background: var(--bg); }
+  .sep { width: 1px; height: 24px; background: var(--line); margin: 0 6px; flex: none; }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 2px; }
+  .logo { width: 34px; height: 34px; border-radius: 8px; display: block; flex: none; }
+  .sym { display: flex; flex-direction: column; line-height: 1.15; }
+  h1 { font-size: 14px; margin: 0; font-weight: 700; letter-spacing: .01em; }
+  .sym .meta { font-size: 11px; }
+  .pricebox { display: flex; align-items: baseline; gap: 8px; padding: 0 6px; flex-wrap: wrap; }
+  #price { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .chg { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chg.up { color: var(--up); } .chg.dn { color: var(--down); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge:empty { display: none; }
+  .fresh { background: var(--up-bg); color: var(--up); }
+  .stale { background: var(--warn-bg); color: var(--warn); }
+  .down  { background: var(--down-bg); color: var(--down); }
+  .group { display: flex; gap: 0; flex-wrap: wrap; }
+  .group button.on { color: var(--accent); }
+  /* Segmented switchers (chart source, timeframe) */
+  .seg { display: flex; align-items: center; gap: 2px; padding: 2px; margin: 0 2px; background: var(--panel2); border-radius: 6px; }
+  .seg button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 11px; border-radius: 4px; color: var(--muted); }
+  .seg button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+  .seg button.on { background: var(--hover); color: var(--strong); box-shadow: inset 0 -2px 0 var(--accent); }
+  .seg .ico { width: 18px; height: 18px; display: grid; place-items: center; flex: none; }
+  .seg svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .seg button.on svg { stroke: #5b8cff; }
+  .seg .txt { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+  .seg .t { font-size: 12.5px; font-weight: 600; }
+  .seg .s { font-size: 10.5px; color: var(--faint); font-weight: 400; }
+  .seg button.on .s { color: var(--muted); }
+  .livedot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 0 rgba(8,153,129,.6);
+             animation: liveRing 1.8s infinite; }
+  .seg button:not(.on) .livedot { background: var(--faint); animation: none; }
+  @keyframes liveRing { 0% { box-shadow: 0 0 0 0 rgba(8,153,129,.55); } 100% { box-shadow: 0 0 0 7px rgba(8,153,129,0); } }
+  .seg-tf button { height: 36px; padding: 0 9px; font-size: 12.5px; font-weight: 600; }
+  .seg-tf:empty, .seg-tf[style*="none"] { display: none !important; }
+
+  /* Candle countdown pill with a progress ring */
+  .cdpill { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px 0 8px; margin: 0 2px;
+            border-radius: 6px; background: var(--panel2); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .cdpill .ring { width: 22px; height: 22px; transform: rotate(-90deg); }
+  .cdpill .trk { fill: none; stroke: var(--hover); stroke-width: 2.5; }
+  .cdpill .prog { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 50.27;
+                  stroke-dashoffset: 50.27; transition: stroke-dashoffset .9s linear, stroke .3s; }
+  .cdpill .cdtf { color: var(--text); font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--hover); }
+  #countdown { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; min-width: 40px; }
+  .cdpill.soon .prog { stroke: var(--warn); } .cdpill.soon #countdown { color: var(--warn); }
+  .cdpill.now .prog { stroke: var(--down); } .cdpill.now #countdown { color: var(--down); }
+  .cdpill.now { animation: cdBlink 1s infinite; }
+  @keyframes cdBlink { 50% { background: rgba(242,54,69,.14); } }
+  .cdpill.off { display: none; }
+  #gap { padding: 0 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12.5px; color: var(--muted); }
+  .pill b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .ctrl { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+
+  /* Main: chart | panel | icon strip */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 440px 64px; gap: 4px; min-height: 0; }
+  .layout.wide { grid-template-columns: minmax(0, 1fr) 64px; }
+  .layout.wide #panel { display: none; }
+  .chartcol { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  #wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bg); }
+  #chart { position: absolute; inset: 0; }
+  #tvCd { position: absolute; right: 70px; bottom: 66px; z-index: 6; display: none; align-items: center; gap: 4px;
+          background: var(--panel2); border: 1px solid var(--line2); border-radius: 4px; padding: 2px 6px;
+          font-size: 12px; font-variant-numeric: tabular-nums; }
+  #tvCd select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 3px; font: inherit; font-size: 11px; }
+  #tvCd b { color: var(--text); }
+  #srcLabel { position: absolute; top: 6px; left: 6px; z-index: 3; background: var(--glass); border: 1px solid var(--line);
+              border-radius: 4px; padding: 3px 7px; font-size: 11px; max-width: 70%; }
+  #srcLabel:empty { display: none; }
+  #msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+         z-index: 4; background: var(--glass); color: var(--warn); text-align: center; padding: 20px; }
+  .foot { font-size: 11.5px; color: var(--muted); padding: 5px 10px; border-top: 1px solid var(--line);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .foot b { color: var(--text); }
+
+  /* Right panel (like TradingView's watchlist/details widget) */
+  #panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; background: var(--bg); }
+  .phead { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .phead b { font-size: 14px; font-weight: 600; }
+  .tabbody { min-height: 0; overflow-y: auto; }
+  .tab { display: flex; flex-direction: column; }
+  .tab[hidden] { display: none; }
+  .card { padding: 12px; border-bottom: 1px solid var(--line); }
+  .sect { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: 8px; }
+  .bias { padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .BUY  { background: var(--up-bg); color: var(--up); border-color: var(--up) !important; }
+  .SELL { background: var(--down-bg); color: var(--down); border-color: var(--down) !important; }
+  .WAIT { background: rgba(120,123,134,.16); color: var(--muted); }
+  .NA   { background: var(--warn-bg); color: var(--warn); }
+  .aitag { font-size: 10.5px; color: var(--accent); margin-left: 4px; }
+
+  /* Decision (top of the panel, always visible) */
+  .decision { cursor: pointer; padding: 12px; border-bottom: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .decision:hover { background: var(--rowhover); }
+  .decision.BUY, .decision.SELL, .decision.WAIT, .decision.NA { background: var(--bg); color: var(--text); }
+  .decision.BUY { box-shadow: inset 3px 0 0 var(--up); } .decision.SELL { box-shadow: inset 3px 0 0 var(--down); }
+  .decision.NA { box-shadow: inset 3px 0 0 var(--warn); } .decision.WAIT { box-shadow: inset 3px 0 0 var(--line2); }
+  .dtop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .dlabel { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .action { font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin-top: 4px; line-height: 1.15; }
+  .decision.BUY .action { color: var(--up); } .decision.SELL .action { color: var(--down); }
+  .decision.NA .action { color: var(--warn); }
+  .why { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .lvls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 10px; background: var(--line);
+          border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .lv { background: var(--bg); padding: 7px 8px; min-width: 0; }
+  .lvls.watch { grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr); }
+  .lvls.watch .wnext .d { white-space: normal; margin-top: 3px; }
+  .lvls.watch .wtxt { font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+  .lv .k { font-size: 11px; color: var(--muted); }
+  .lv .p { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lv .d { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lv.stop .p { color: var(--down); } .lv.tgt .p { color: var(--up); } .lv.ent .p { color: #5b8cff; }
+  .today { font-size: 12.5px; margin-top: 10px; padding: 8px 10px; border-radius: 4px; background: var(--panel2); }
+  .today b.BUY, .today b.SELL, .today b.WAIT { background: none; padding: 0; }
+  .size { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .size b { color: var(--text); }
+  .size u { color: var(--accent); text-decoration: none; }
+
+  /* Right icon strip (switches the panel, like TradingView's right sidebar) */
+  .rail { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; background: var(--bg); }
+  .rail button { position: relative; width: 56px; height: 54px; padding: 4px 0 0; display: flex; flex-direction: column;
+                 align-items: center; justify-content: center; gap: 4px; border-radius: 8px; color: var(--muted); }
+  .rail button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+  .rail button.on { color: var(--strong); background: var(--acc-bg); }
+  .rail button.on svg { stroke: #5b8cff; }
+  .rail button.on::before { content: ""; position: absolute; left: -4px; top: 12px; bottom: 12px; width: 3px;
+                            border-radius: 0 3px 3px 0; background: var(--accent); }
+  .rail svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .rail .lbl { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .01em; line-height: 1; }
+  .rail .cnt { position: absolute; top: 3px; right: 3px; min-width: 18px; height: 15px; padding: 0 4px; border-radius: 8px;
+               background: var(--hover); color: var(--text); border: 1px solid var(--line2);
+               font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; }
+  .rail button.on .cnt { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rail .dotrun { position: absolute; top: 6px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn);
+                  display: none; animation: liveRing 1.4s infinite; }
+  .rail .dotrun.on { display: block; }
+  .rail .cnt:empty { display: none; }
+  .rail .railsep { width: 26px; height: 1px; background: var(--line); margin: 4px 0; }
+
+  /* Plan tab */
+  .tfgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .tfbox { border-radius: 4px; padding: 7px 8px; min-width: 0; background: var(--panel2); border: 0 !important; }
+  .tfbox.BUY, .tfbox.SELL, .tfbox.WAIT, .tfbox.NA { background: var(--panel2); }
+  .tfbox.BUY { box-shadow: inset 0 2px 0 var(--up); } .tfbox.SELL { box-shadow: inset 0 2px 0 var(--down); }
+  .tfbox .k { font-size: 11px; color: var(--muted); }
+  .tfbox .b { font-size: 14px; font-weight: 700; }
+  .tfbox.BUY .b { color: var(--up); } .tfbox.SELL .b { color: var(--down); } .tfbox.WAIT .b { color: var(--text); }
+  .tfbox .t { font-size: 11.5px; line-height: 1.3; color: var(--muted); }
+  .steps { margin: 0 0 0 18px; padding: 0; font-size: 13px; }
+  .steps li { margin: 3px 0; }
+  .cancel { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .vote { display: flex; gap: 2px; height: 6px; margin: 2px 0 8px; }
+  .vote span { display: block; border-radius: 3px; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip { padding: 2px 7px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .verdict { font-size: 13px; line-height: 1.5; }
+  .stopmap { font-size: 12.5px; }
+  .stopmap .k { font-size: 11px; color: var(--muted); margin: 2px 0; }
+  .stopmap .now { border-top: 1px dashed var(--accent); border-bottom: 1px dashed var(--accent); color: var(--accent);
+                  text-align: center; font-size: 12px; margin: 4px 0; padding: 1px 0; }
+  .pool { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; padding: 1px 0; }
+  .pool b { font-variant-numeric: tabular-nums; min-width: 70px; }
+  .pool .bar { height: 5px; border-radius: 3px; background: var(--warn); opacity: .8; flex: none; max-width: 90px; }
+  .pool .hunted { font-size: 11px; color: var(--muted); }
+
+  /* Agents tab */
+  .agents-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+  .tile { cursor: pointer; display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 10px 12px;
+          border-bottom: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .tile.BUY, .tile.SELL, .tile.WAIT, .tile.NA { background: var(--bg); color: var(--text); }
+  .tile:hover { background: var(--rowhover); }
+  .tile .hd { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .tile .nm { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .tile .nm::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .tile.BUY .nm::before { background: var(--up); } .tile.SELL .nm::before { background: var(--down); }
+  .tile.NA .nm::before { background: var(--warn); }
+  .tile .sub { font-size: 11.5px; color: var(--muted); }
+  .tile .sum { font-size: 12.5px; line-height: 1.4; }
+  .confbar { height: 3px; border-radius: 2px; background: var(--panel2); overflow: hidden; }
+  .confbar span { display: block; height: 100%; background: var(--accent); }
+  .tile.BUY .confbar span, .confbar.BUY span { background: var(--up); }
+  .tile.SELL .confbar span, .confbar.SELL span { background: var(--down); }
+
+  /* Levels and track tabs */
+  table.lvtable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.lvtable td { padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  table.lvtable tr:hover td { background: var(--rowhover); }
+  table.lvtable td.p { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.lvtable td.d { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.lvtable tr.nowrow td { color: #fff; background: var(--accent); border-top: 0; font-weight: 700; }
+  .kind { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; white-space: nowrap; }
+  .kind.stop { background: var(--down-bg); color: var(--down); } .kind.target { background: var(--up-bg); color: var(--up); }
+  .kind.entry { background: var(--acc-bg); color: #5b8cff; } .kind.pool { background: var(--warn-bg); color: var(--warn); }
+  .kind.other { background: rgba(120,123,134,.16); color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .stat { background: var(--panel2); border-radius: 4px; padding: 10px 6px; text-align: center; }
+  .stat .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; color: var(--muted); }
+  .status { font-size: 11.5px; color: var(--muted); padding: 6px 12px; border-top: 1px solid var(--line);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Details pop-up */
+  .calc { margin-top: 8px; font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .calc input { width: 90px; background: var(--app); color: var(--text); border: 1px solid var(--line2); border-radius: 4px; padding: 4px 6px; }
+  .calc .size { flex-basis: 100%; font-size: 12.5px; }
+  .plan { border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; min-width: 0; }
+  .plan .act { font-size: 18px; font-weight: 700; }
+  .steps.full li { white-space: normal; font-size: 13px; margin: 2px 0; }
+  .modal { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal[hidden] { display: none; }
+  .modalbox { background: var(--panel2); border: 1px solid var(--line2); border-radius: 6px; width: min(720px, 94vw);
+              max-height: 86vh; overflow: auto; padding: 16px 18px; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,.6); }
+  .modalbox h2 { margin: 0 0 6px; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-right: 36px; }
+  #modalClose { position: absolute; top: 10px; right: 10px; }
+  table.rows, table.levels { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  table.rows td, table.levels td { padding: 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  table.rows td.k { color: var(--muted); width: 30%; padding-right: 10px; }
+  table.rows td.v { text-align: right; }
+  table.levels td.p { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .modalbox ul { margin: 4px 0 0 18px; padding: 0; font-size: 12.5px; }
+  .modalbox .summary { font-size: 13.5px; margin-top: 8px; line-height: 1.5; }
+
+  /* Backtest tab */
+  .presets { margin: 0 0 10px; display: inline-flex; flex-wrap: wrap; }
+  .presets button { height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 600; }
+  .frm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0; font-size: 12.5px; color: var(--muted); }
+  .frm label { display: flex; align-items: center; gap: 6px; }
+  .frm input, .frm select { background: var(--app); color: var(--text); border: 1px solid var(--line2); border-radius: 4px;
+                            padding: 5px 8px; font: inherit; font-size: 12.5px; color-scheme: dark; }
+  .frm input[type=number] { width: 80px; }
+  .btprog { margin-top: 10px; }
+  .btprog .bar { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; margin-bottom: 4px; }
+  .btprog .bar span { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+  .stats.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stat .v.up { color: var(--up); } .stat .v.dn { color: var(--down); }
+  td.up, .p.up { color: var(--up); } td.dn, .p.dn { color: var(--down); }
+  .equity { width: 100%; height: 130px; margin-top: 10px; background: var(--panel2); border-radius: 4px; display: block; }
+  .eqaxis { display: flex; justify-content: space-between; margin-top: 4px; }
+  .btlines { margin: 10px 0 6px 18px; padding: 0; font-size: 12.5px; }
+  .btlines li { margin: 3px 0; }
+  .btruns tr { cursor: pointer; }
+  .callsbtn { display: inline-flex; align-items: center; gap: 6px; height: 40px; margin: 0 2px; background: var(--panel2); border-radius: 6px; }
+  .callsbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .themebtn { width: 32px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .themebtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .themebtn .sun, :root[data-theme="light"] .themebtn .moon { display: none; } :root[data-theme="light"] .themebtn .sun { display: block; }
+  .callsbtn.on { color: var(--strong); background: var(--acc-bg); box-shadow: inset 0 -2px 0 var(--accent); }
+  .demomode { margin: 8px 12px; display: flex; } .demomode button { flex: 1; height: 34px; font-weight: 600; }
+  .demopos { cursor: pointer; }
+  /* ---- Home (accounts + journal) ---- */
+  .viewseg { margin: 0 6px; } .viewseg button { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .viewseg svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .homeview { display: none; overflow: auto; min-height: 0; background: var(--app); }
+  body.view-home .homeview { display: block; } body.view-home main.layout { display: none; }
+  body.view-home #srcGroup, body.view-home #tfGroup, body.view-home #cdPill, body.view-home #callsBtn, body.view-home #gap,
+  body.view-home .ctrl .chk, body.view-home .ctrl .sep, body.view-home #bigBtn, body.view-home #refreshBtn, body.view-home .ctrl .pill { display: none; }
+  .hwrap { max-width: 1280px; margin: 0 auto; padding: 18px 16px 40px; }
+  .hhead { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .hhead h2 { margin: 2px 0; font-size: 22px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hbtns { display: flex; gap: 6px; flex-wrap: wrap; } .hbtns button:not(.primary), .hside > button:not(.linkbtn), .hcall button:not(.primary) { background: var(--panel2); }
+  .hsum { margin-bottom: 14px; }
+  .hgrid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+  .hgrid > aside .card, .hgrid > div > .card, .hside .card { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; }
+  .acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .acard { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; transition: border-color .12s, transform .12s; }
+  .acard:hover, .acard:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+  .acard.demoacard { border-color: var(--up); box-shadow: inset 3px 0 0 var(--up); }
+  .acard.arch { opacity: .6; } .acard.empty { border-style: dashed; display: flex; flex-direction: column; gap: 6px; justify-content: center; min-height: 160px; }
+  .ahd { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; } .ahd b { font-size: 15px; }
+  .aphase { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 6px; }
+  .chip { background: var(--acc-bg); color: var(--accent); border-radius: 12px; padding: 2px 9px; font-size: 12px; font-weight: 600; }
+  .chip.sm { font-size: 10px; padding: 1px 6px; }
+  .afoot { margin-top: 8px; }
+  .jm { margin-top: 8px; } .jmh { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+  .jmh b { color: var(--text); font-weight: 600; } .jmh b.up { color: var(--up); } .jmh b.dn { color: var(--down); }
+  .jbar { height: 7px; border-radius: 4px; background: var(--panel2); overflow: hidden; margin-top: 4px; }
+  .jbar span { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .jbar.tgt span { background: var(--up); } .jbar.room span { background: #5b8cff; } .jbar.warnb span { background: var(--warn); }
+  .jbreach { background: var(--down-bg); color: var(--down); border-radius: 6px; padding: 6px 9px; font-size: 12.5px; margin: 6px 0; }
+  .jok { background: var(--up-bg); color: var(--up); border-radius: 6px; padding: 6px 9px; font-size: 12.5px; margin: 6px 0; }
+  .hcall .hact { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+  .linkbtn { background: none; color: var(--accent); padding: 4px 0; }
+  .linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
+  .jstep { display: flex; align-items: center; gap: 0; margin: 4px 0 14px; overflow-x: auto; }
+  .jstep button { display: flex; align-items: center; gap: 7px; background: var(--bg); border: 1px solid var(--line); border-radius: 20px; padding: 5px 12px 5px 5px; white-space: nowrap; }
+  .jstep button i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--panel2); }
+  .jstep .done i { background: var(--up); color: #fff; } .jstep .fail i { background: var(--down); color: #fff; } .jstep .now i { background: var(--accent); color: #fff; }
+  .jstep .sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; } .jstep .todo { opacity: .5; }
+  .jstep .jline { flex: 0 0 22px; height: 2px; background: var(--line2); }
+  .jbig { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+  .jbig .k { font-size: 11.5px; color: var(--muted); } .jbig .big { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .jbig .big.up { color: var(--up); } .jbig .big.dn { color: var(--down); }
+  .stats.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jtable { overflow-x: auto; } .jtable table { min-width: 640px; }
+  .jday { display: grid; grid-template-columns: 92px 1fr 80px; gap: 8px; align-items: center; font-size: 12.5px; padding: 3px 0; }
+  .jday b { text-align: right; } .jday b.up { color: var(--up); } .jday b.dn { color: var(--down); }
+  .jform textarea { width: 100%; box-sizing: border-box; background: var(--app); color: var(--text); border: 1px solid var(--line2); border-radius: 4px; padding: 6px; font: inherit; margin-top: 3px; }
+  .jform .frm input[type=number] { width: 92px; }
+  .prow { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; color: var(--muted); }
+  .prow label { display: flex; align-items: center; gap: 4px; }
+  .prow input, .prow select { background: var(--app); color: var(--text); border: 1px solid var(--line2); border-radius: 4px; padding: 4px 6px; font: inherit; }
+  .prow input[type=number] { width: 64px; } .prow .pn { width: 100px; font-weight: 600; }
+  .jrisk { background: var(--panel2); border-radius: 6px; padding: 6px 9px; margin: 2px 0 6px; min-height: 18px; }
+  .jrisk:empty { display: none; }
+  .jmoods { display: flex; flex-wrap: wrap; gap: 4px; } .jmoods button, .jstars button { background: var(--panel2); padding: 4px 9px; font-size: 12.5px; }
+  .jmoods button.on { background: var(--acc-bg); color: var(--accent); }
+  .jstars { display: flex; gap: 2px; } .jstars button { color: var(--faint); font-size: 16px; padding: 2px 6px; } .jstars button.on { color: #f0b429; }
+  .jimg { max-width: 100%; max-height: 260px; border-radius: 6px; border: 1px solid var(--line); display: block; margin: 6px 0; }
+  .dnbtn { color: var(--down); }
+  /* ---- simple one-row header ---- */
+  header.top { flex-wrap: nowrap; gap: 6px; }
+  .sym .meta, header.top .sep, .ctrl .pill { display: none; }
+  #fresh.fresh { display: none; }                                   /* "LIVE" only shows when something is wrong */
+  #srcGroup .s { display: none; } #srcGroup button { padding: 5px 10px; }
+  #srcGroup .txt .t { font-size: 13px; white-space: nowrap; }
+  header.top .pricebox { flex-wrap: nowrap; white-space: nowrap; } header.top .brand, .viewseg, .cdpill { flex-shrink: 0; }
+  .mtpill .det { display: none; }
+  body.src-tv .ctrl .chk { display: none; }
+  .iconbtn { width: 34px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .iconbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  #bigBtn.on { color: var(--accent); }
+  .ctrl { flex-wrap: nowrap; gap: 4px; }
+  @media (max-width: 1450px) { .cdpill .cdlbl, header.top #chg { display: none; } .viewseg button { padding: 5px 8px; } }
+  @media (max-width: 1250px) { #srcGroup .ico { display: none; } .callsbtn #callsLbl { display: none; } }
+  @media (max-width: 1000px) { header.top { flex-wrap: wrap; } }
+  /* 1. demo-account pill in the top bar */
+  .mtpill[hidden] { display: none; }
+  .mtpill { display: inline-flex; align-items: center; gap: 7px; margin-left: 8px; padding: 4px 10px; border-radius: 14px; font-size: 12.5px;
+            background: var(--panel2); border: 1px solid var(--line2); color: var(--muted); white-space: nowrap; }
+  .mtpill b { color: var(--text); font-weight: 600; } .mtpill .up { color: var(--up); } .mtpill .dn { color: var(--down); }
+  .mtpill.on { border-color: var(--up); background: var(--up-bg); color: var(--text); } .mtpill.on .mtdot { background: var(--up); box-shadow: 0 0 0 3px var(--up-bg); }
+  .mtpill.warn { border-color: var(--warn); background: var(--warn-bg); } .mtpill.warn .mtdot { background: var(--warn); }
+  /* 2. Today strip */
+  .tstrip { display: grid; grid-template-columns: 1.3fr 1.3fr 0.9fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .tcell { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .tcell .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: 6px; }
+  .tcell .tv { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; } .tcell .tv.up { color: var(--up); } .tcell .tv.dn { color: var(--down); }
+  .tcell .trow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .tcell button { margin-top: 8px; }
+  .tcell button:not(.primary) { background: var(--panel2); }
+  @media (max-width: 1100px) { .tstrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* 3. Side rail: every tab visible on desktop (as before); on the phone's bottom bar the extra tabs sit under "Analysis" */
+  .rail { position: relative; }
+  @media (min-width: 1001px) {
+    .rail .railmorebtn { display: none; }
+    .rail .railmore, .rail .railmore[hidden] { display: contents; }
+    .rail [data-tab="plan"] { order: 1; } .rail [data-tab="agents"] { order: 2; } .rail [data-tab="levels"] { order: 3; }
+    .rail [data-tab="track"] { order: 4; } .rail [data-tab="news"] { order: 5; } .rail [data-tab="demo"] { order: 6; }
+    .rail [data-tab="calendar"] { order: 7; } .rail [data-tab="backtest"] { order: 8; }
+  }
+  @media (max-width: 1000px) {
+    .railmore { position: fixed; right: 8px; bottom: 62px; z-index: 40; display: grid; gap: 2px; padding: 6px; background: var(--bg);
+                border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.35); }
+    .railmore[hidden] { display: none; }
+    .rail .railmore button { flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 10px; width: 200px; height: 42px; padding: 0 12px; }
+    .rail .railmore button .lbl { font-size: 13px; }
+    .rail .railmore button.on::before { left: 0; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; }
+    .rail .railmore .cnt { position: static; margin-left: auto; }
+    .rail .railmore .dotrun { position: static; margin-left: auto; }
+  }
+  /* 4. phone: trade cards */
+  .jcards { display: none; }
+  .tcard { padding: 9px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+  .tcard .tc1 { display: flex; align-items: center; gap: 8px; } .tcard .tc1 .net { margin-left: auto; font-size: 15px; }
+  .tcard .tc1 .net.up { color: var(--up); } .tcard .tc1 .net.dn { color: var(--down); }
+  .tcard .tc2 { margin-top: 3px; }
+  .mthead { display: flex; align-items: center; gap: 7px; } .mtdot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); }
+
+  .jsub { margin: 4px 0 10px; display: flex; flex-wrap: wrap; } .jsub button { font-weight: 600; }
+  .jm { position: relative; } .jlim { position: absolute; bottom: -2px; width: 2px; height: 11px; background: var(--down); }
+  .jfilters { padding: 8px 12px; } .jfilters .frm { margin: 0; } .jfilters input[type=date] { width: 140px; }
+  @media (max-width: 900px) { .hgrid { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .hwrap { padding: 12px 12px 90px; } .acards { grid-template-columns: 1fr; } .hhead h2 { font-size: 19px; }
+    .viewseg button { padding: 6px 8px; }
+    .tstrip { grid-template-columns: 1fr; }
+    .jtable { display: none; } .jcards { display: block; }
+    .hbtns { width: 100%; } .hbtns button { flex: 1 1 auto; min-height: 44px; }
+    .hwrap .frm button, .jstep button { min-height: 44px; }
+
+  }
+  .vchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vchip { border: 1px solid var(--line2); border-radius: 14px; padding: 4px 10px; font-size: 12.5px; }
+  .vchip.on { background: var(--up-bg); color: var(--up); border-color: transparent; }
+  .vchip.off { color: var(--muted); text-decoration: line-through; }
+  .rvlast { border-top: 1px solid var(--line); padding-top: 8px; }
+  .lvhelp .kv1 { align-items: flex-start; } .lvhelp .kv1 > span { flex: 0 0 auto; min-width: 118px; } .lvhelp .kv1 b { font-weight: 400; font-size: 12.5px; text-align: left; }
+  .hcsec { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 2px; }
+  .hcrow { padding: 7px 0; border-top: 1px solid var(--line); } .hcrow .meta { margin-top: 2px; }
+  .hctop { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .alertbtn.on { color: var(--warn); } .alertbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .alertbtn { width: 32px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .nowtoast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 12px; align-items: center;
+              background: var(--bg); border: 1px solid var(--line2); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 14px;
+              box-shadow: 0 12px 32px rgba(0,0,0,.35); cursor: pointer; max-width: calc(100vw - 32px); }
+  .nowtoast b { font-size: 15px; } .nowtoast .x { margin-left: 4px; }
+  .calhead { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; } .calhead b { flex: 1; font-size: 15px; }
+  .calhead button { width: 36px; height: 32px; padding: 0; background: var(--panel2); font-size: 18px; }
+  .calhead .up { color: var(--up); font-weight: 700; } .calhead .dn { color: var(--down); font-weight: 700; }
+  .calgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cwk { font-size: 10.5px; color: var(--muted); text-align: center; padding-bottom: 2px; }
+  .cday { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 56px; padding: 4px 5px; border-radius: 6px;
+          background: var(--panel2); border: 1px solid transparent; font-size: 11px; text-align: left; overflow: hidden; }
+  .cday.empty { background: transparent; } .cday:disabled { opacity: .35; cursor: default; }
+  .cday .dn { font-weight: 700; font-size: 12.5px; color: var(--text); } .cday .pl { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cday .tg { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+  .cday.pos { background: rgba(8,153,129,.16); } .cday.pos .pl { color: var(--up); }
+  .cday.neg { background: rgba(242,54,69,.14); } .cday.neg .pl { color: var(--down); }
+  .cday.today { border-color: var(--line2); } .cday.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .tlrow { display: grid; grid-template-columns: 62px auto minmax(0, 1fr); gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+  @media (max-width: 640px) { .cday { min-height: 48px; padding: 3px; } .cday .pl { font-size: 10px; } .cday .tg { display: none; } } .demopos:hover { background: var(--rowhover); }
+  .tclick { cursor: pointer; } tr.tclick:hover td, .dtrade.tclick:hover { background: var(--rowhover2); }
+  .tlv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+  .tlv > div { background: var(--app); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+  .tlv span { display: block; font-size: 11px; color: var(--muted); } .tlv b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tlv i { display: block; font-style: normal; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tlv b.ent { color: #5b8cff; } .tlv b.up, .modalbox .up { color: var(--up); } .tlv b.dn, .modalbox .dn { color: var(--down); }
+  .rpchart { height: 300px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); }
+  .rpctl { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .rpctl input[type=range] { flex: 1; accent-color: var(--accent); min-width: 60px; }
+  .rpctl select { background: var(--app); color: var(--text); border: 1px solid var(--line2); border-radius: 4px; padding: 4px; }
+  .rpctl button { background: var(--panel2); } .rpctl button.primary { background: var(--accent); min-width: 84px; }
+  .rpinfo { font-size: 12.5px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; } .rpinfo b { color: var(--text); }
+  @media (max-width: 640px) { .tlv { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rpchart { height: 240px; } }
+  .dhead, details.day > summary { display: grid; grid-template-columns: 1.3fr 1fr 0.9fr 1.1fr 0.9fr; gap: 8px; align-items: center; }
+  .dhead { font-size: 11px; color: var(--muted); padding: 0 0 4px; }
+  details.day { border-top: 1px solid var(--line); }
+  details.day > summary { list-style: none; cursor: pointer; padding: 8px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+  details.day > summary::-webkit-details-marker { display: none; }
+  details.day > summary:hover { background: var(--rowhover); }
+  details.day[open] > summary { color: var(--accent); }
+  .dbar { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+  .dbar i { display: block; height: 100%; } .dbar i.pos { background: var(--up); } .dbar i.neg { background: var(--down); }
+  .dtrade { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center;
+            padding: 5px 0 5px 10px; font-size: 12px; border-left: 2px solid var(--line2); margin: 0 0 4px 4px; }
+  .dtrade b.up, details.day b.up { color: var(--up); } .dtrade b.dn, details.day b.dn { color: var(--down); }
+  @media (max-width: 640px) { .dhead, details.day > summary { grid-template-columns: 1.2fr 0.9fr 0.9fr 0.8fr; }
+    .dhead span:last-child, details.day > summary > span:last-child { display: none; }
+    .dtrade { grid-template-columns: auto minmax(0, 1fr) auto; } .dtrade > span:nth-child(2) { display: none; } }
+  .usdhead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; align-items: center; margin-top: 4px; }
+  .usdhead .big { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .usdhead .big.up { color: var(--up); } .usdhead .big.dn { color: var(--down); }
+  .usdhead .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .usdhead .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 640px) { .usdhead { grid-template-columns: 1fr; } }
+  .btruns tr.sel td { background: var(--acc-bg); }
+  /* Market psychology gauge */
+  .moodhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .mood { font-size: 20px; font-weight: 800; letter-spacing: .02em; background: none !important; }
+  .mood.SELL { color: var(--down); } .mood.NA { color: var(--warn); } .mood.WAIT { color: var(--text); } .mood.BUY { color: var(--up); }
+  .gauge { position: relative; height: 8px; border-radius: 4px;
+           background: linear-gradient(90deg, #f23645, #ff9800 30%, #5d606b 50%, #ff9800 70%, #089981); }
+  .gauge .pin { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--text);
+                box-shadow: 0 0 0 2px var(--bg); }
+  .gscale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 4px; }
+  .kvs1 .kv1 { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .kv1 span { color: var(--muted); white-space: nowrap; } .kv1 b { font-weight: 500; text-align: right; }
+  /* News tab */
+  .nwstatus { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 4px; font-weight: 600; }
+  .nwstatus.ok { background: var(--up-bg); color: var(--up); } .nwstatus.block { background: var(--down-bg); color: var(--down); }
+  .nwday { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 12px 0 4px; }
+  .nwrow { display: grid; grid-template-columns: 52px 62px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+           padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .nwrow.past { opacity: .45; } .nwrow.live { background: var(--down-bg); }
+  .nwrow .tm { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .nwrow .imp { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-align: center; }
+  .imp.High { background: var(--down-bg); color: var(--down); } .imp.Medium { background: var(--warn-bg); color: var(--warn); }
+  .nwrow .nm b { font-weight: 600; } .nwrow .fc { font-size: 11.5px; color: var(--muted); }
+  .nwrow .cd { font-size: 11.5px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .nwrow .nt { display: inline-block; margin-left: 6px; font-size: 10px; color: var(--down); border: 1px solid rgba(242,54,69,.4); border-radius: 3px; padding: 0 4px; }
+  /* Psychology coach */
+  .mind { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .psych .pwarn { margin: 0 0 8px 18px; padding: 0; font-size: 13px; color: var(--warn); }
+  .psych .pwarn li { margin: 3px 0; }
+  .pok { font-size: 13px; color: var(--up); margin-bottom: 6px; }
+  .pstop { margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--down-bg); color: var(--down); font-weight: 600; font-size: 13px; }
+  .kvs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .kv { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; border-bottom: 1px dashed var(--line); padding: 3px 0; }
+  .kv span { color: var(--muted); } .kv b { font-weight: 600; text-align: right; }
+  .myday .step { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; }
+  .myday .step button { width: 28px; height: 28px; padding: 0; background: var(--panel2); font-size: 16px; font-weight: 700; }
+  .myday .step b { min-width: 16px; text-align: center; font-size: 15px; }
+  .pchk { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
+  .pchk input { margin-top: 3px; accent-color: var(--up); }
+  @media (max-width: 1400px) { #updated, #gap { display: none; } .layout { grid-template-columns: minmax(0, 1fr) 400px 64px; } }
+
+  /* Tablets and phones: chart on top, icon strip becomes a tab bar, page scrolls */
+  @media (max-width: 1000px) {
+    html, body { overflow: auto; height: auto; }
+    #app { height: auto; }
+    .layout, .layout.wide { grid-template-columns: minmax(0, 1fr); }
+    .layout.wide #panel { display: grid; }
+    #wrap { height: 58vh; height: 58svh; flex: none; }
+    #panel { grid-template-rows: none; }
+    .tabbody { overflow: visible; }
+    /* Bottom tab bar like an iPhone app: always reachable, above the home indicator */
+    .rail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; flex-direction: row; justify-content: space-around;
+            gap: 0; padding: 4px 2px calc(4px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line2);
+            background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    #panel { scroll-margin-top: 8px; }
+    .rail button { flex: 1 1 0; min-width: 0; width: auto; height: 52px; padding: 2px 0 0; gap: 3px; }
+    .rail .lbl { display: block; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .rail .railsep, .rail .wideonly { display: none; }
+    .rail button.mobonly { display: flex; }
+    .rail .cnt { top: 1px; right: 50%; margin-right: -22px; }
+    .rail button.on::before { left: 25%; right: 25%; top: -4px; bottom: auto; width: auto; height: 3px; border-radius: 0 0 3px 3px; }
+    header.top { padding-top: max(4px, env(safe-area-inset-top)); padding-left: max(8px, env(safe-area-inset-left));
+                 padding-right: max(8px, env(safe-area-inset-right)); }
+    #modal { padding-bottom: env(safe-area-inset-bottom); }
+  }
+  .rail .mobonly { display: none; }
+  @media (max-width: 640px) {
+    .hide-sm { display: none !important; }
+    header.top { padding: 4px 6px; }
+    .sep { display: none; }
+    .seg .s, .cdpill .cdlbl { display: none; }
+    .seg button { padding: 0 8px; gap: 6px; }
+    #price { font-size: 17px; }
+    .tfgrid, .lvls, .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .action { font-size: 21px; }
+    .foot { white-space: normal; }
+    /* iPhone Safari zooms into inputs smaller than 16px: keep form text at 16px */
+    input, select, textarea { font-size: 16px !important; }
+    button { min-height: 36px; }
+    .rail button { min-height: 0; }
+    .myday .step button { width: 40px; height: 40px; }
+    .pchk { padding: 8px 0; font-size: 14px; }
+    .pchk input { width: 20px; height: 20px; }
+    .modalbox { width: 100vw; max-height: 92vh; max-height: 92svh; border-radius: 14px 14px 0 0; align-self: flex-end; }
+    .modal { align-items: flex-end; }
+    #modalClose { width: 40px; height: 40px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><img class="logo" src="/icon.svg" alt="AuEdge">
+      <div class="sym"><h1>AuEdge</h1><span class="meta">XAU/USD · gold analysis</span></div></div>
+    <div class="seg viewseg" id="viewSeg" role="tablist" aria-label="Screen">
+      <button data-view="home" role="tab"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg>Home</button>
+      <button data-view="trade" role="tab"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-6"/></svg>Trade</button></div>
+    <div class="pricebox">
+      <span id="price">—</span>
+      <span id="chg" class="chg" title="Change over the last 24 hours (spot)"></span>
+      <span id="fresh" class="badge stale">loading…</span>
+      <span id="mkt" class="badge" style="display:none"></span>
+    </div>
+    <span class="meta" id="updated" style="display:none"></span>
+    <button id="demoPill" class="mtpill on" hidden title="AuEdge demo account · click to open the Demo tab"><span class="mtdot"></span><span id="demoPillTxt"></span></button>
+    <span class="sep hide-sm"></span>
+    <div class="seg" id="srcGroup" role="tablist" aria-label="Chart source">
+      <button data-src="tv" class="on" title="TradingView's own live chart, tick by tick (OANDA XAU/USD feed). Has drawing tools and indicators.">
+        <span class="ico"><span class="livedot"></span></span><span class="txt"><span class="t">TradingView</span><span class="s">Live ticks · tools</span></span></button>
+      <button data-src="spot" title="Spot gold price from XAUS. The agents' entry, stop, targets and stop pools are drawn on this chart.">
+        <span class="ico"><svg viewBox="0 0 20 20"><path d="M2 6h16M2 10h16M2 14h16" stroke-dasharray="2.5 2"/><path d="M3 15l4-5 3 2 4-6 3 3"/></svg></span><span class="txt"><span class="t">Spot + zones</span><span class="s">Agents' levels</span></span></button>
+      <button data-src="fut" title="Real OHLC candles, but these are COMEX gold futures (a few dollars above spot, delayed)">
+        <span class="ico"><svg viewBox="0 0 20 20"><path d="M5 3v14M10 5v12M15 2v13"/><rect x="3.5" y="6" width="3" height="7" rx=".5"/><rect x="8.5" y="8" width="3" height="5" rx=".5"/><rect x="13.5" y="4" width="3" height="7" rx=".5"/></svg></span><span class="txt"><span class="t">Futures</span><span class="s">COMEX · delayed</span></span></button>
+    </div>
+    <div class="seg seg-tf" id="tfGroup"></div>
+    <div class="cdpill" id="cdPill" title="Time left before the current candle closes. The ring fills as the candle runs; it turns amber in the last minute and red in the last 15 seconds.">
+      <svg class="ring" viewBox="0 0 20 20"><circle class="trk" cx="10" cy="10" r="8"/><circle class="prog" id="cdRing" cx="10" cy="10" r="8"/></svg>
+      <span class="cdtf" id="cdTf">15m</span><span class="cdlbl">closes in</span><b id="countdown">--:--</b>
+    </div>
+    <button id="callsBtn" class="callsbtn" title="Show trade calls on the chart (demo + backtest). Click: 7 days, again: 30 days, again: hide. Click an arrow to replay that trade.">
+      <svg viewBox="0 0 24 24"><path d="M7 4v13M3.5 13.5 7 17l3.5-3.5"/><path d="M17 20V7M13.5 10.5 17 7l3.5 3.5"/></svg><span id="callsLbl">Calls</span></button>
+    <span class="meta" id="gap"></span>
+    <span class="spacer"></span>
+    <div class="ctrl">
+      <label class="chk hide-sm" title="Zones can only be drawn on the Spot chart, not inside TradingView"><input type="checkbox" id="showLv" checked> Zones</label>
+      <span class="sep hide-sm"></span>
+      <span class="pill" title="All agents re-run 20 seconds after every 15-minute candle closes">Next analysis <b id="nextIn">--:--</b></span>
+      <button id="alertBtn" class="alertbtn" title="Alerts: sound and pop-up when AuEdge says BUY NOW or SELL NOW" aria-label="Alerts for BUY NOW / SELL NOW">
+        <svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></button>
+      <button id="themeBtn" class="themebtn" title="Switch between dark and light theme" aria-label="Switch between dark and light theme">
+        <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></button>
+      <button id="refreshBtn" class="primary iconbtn" title="Run all agents again now" aria-label="Refresh the analysis">
+        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
+      <button id="bigBtn" class="hide-sm iconbtn" title="Bigger chart: hide the analysis panel" aria-label="Bigger chart">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="chartcol">
+      <div id="wrap">
+        <div id="chart"></div>
+        <div id="tv" style="position:absolute;inset:0;display:none;z-index:5"></div>
+        <div id="tvCd" title="Time left before the current candle closes. TradingView's chart cannot tell this page which timeframe you picked inside it, so choose the same one here.">
+          <select id="tvCdTf"><option>1m</option><option>5m</option><option selected>15m</option><option>30m</option><option>1h</option><option>4h</option></select>
+          closes in <b id="tvCdTxt">--:--</b>
+        </div>
+        <div id="srcLabel"></div>
+        <div id="msg"></div>
+      </div>
+      <div class="foot" title="All XAUS prices are indicative mid-market reference rates, not tradable broker quotes. Your broker's prices differ by the spread. The TradingView chart is TradingView's own widget (OANDA feed), a different source from the XAUS data the agents use. Times are your local time.">
+        <b>Analysis only, not trading advice.</b> Indicative mid-market prices, not broker quotes · spot source <span id="psrc">—</span> via xaus.com · <span id="poll"></span>
+      </div>
+    </section>
+
+    <section id="panel">
+      <div class="phead"><b id="ptitle">Plan</b><span class="meta" id="psub">Chief analyst · Daily to 15m</span></div>
+      <div id="decision" class="decision WAIT" data-open="chief" title="Click for the full plan and the position-size calculator">
+        <div class="dlabel">Chief analyst decision</div><div class="action">Loading…</div>
+        <div class="why">Running all agents on Daily, 4H, 1H and 15m.</div>
+      </div>
+      <div class="tabbody">
+        <div class="tab" id="tab-plan"></div>
+        <div class="tab" id="tab-agents" hidden><div id="reviewCard" class="card"></div><div id="agentCards" class="agents-grid"></div></div>
+        <div class="tab" id="tab-levels" hidden></div>
+        <div class="tab" id="tab-track" hidden></div>
+        <div class="tab" id="tab-backtest" hidden></div>
+        <div class="tab" id="tab-news" hidden></div>
+        <div class="tab" id="tab-demo" hidden></div>
+        <div class="tab" id="tab-calendar" hidden></div>
+      </div>
+      <div class="status" id="aStatus">Loading agents…</div>
+    </section>
+
+    <nav class="rail" id="tabs" role="tablist" aria-label="Analysis panels">
+      <button class="mobonly" data-go="chart" title="Back to the chart">
+        <svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-6"/></svg><span class="lbl">Chart</span></button>
+      <button data-tab="plan" class="on" role="tab" title="Plan: the trade decision, timeframes and stop map">
+        <svg viewBox="0 0 24 24"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M16 5h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Plan</span></button>
+      <button data-tab="levels" role="tab" title="Levels: every price level from every agent, sorted">
+        <svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".6"/></svg><span class="lbl">Levels</span><span class="cnt" id="lvCount"></span></button>
+      <button data-tab="news" role="tab" title="News: US events that move gold (ForexFactory + official dates)">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13.5h3M7.5 16.5h6"/></svg><span class="lbl">News</span><span class="cnt" id="nwCount"></span></button>
+      <button class="railmorebtn" data-more="1" aria-haspopup="true" aria-expanded="false" title="Analysis: agents, record, calendar, backtest, demo">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span class="lbl">Analysis</span><span class="dotrun" id="moreDot"></span></button>
+      <div class="railmore" id="railMore" hidden role="menu">
+      <button data-tab="agents" role="tab" title="Agents: what each analysis agent says">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.3.1 3.9 1.5 4.5 4.4"/></svg><span class="lbl">Agents</span><span class="cnt" id="agCount"></span></button>
+      <button data-tab="track" role="tab" title="Track record: how past calls and trades turned out">
+        <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="lbl">Record</span></button>
+      <button data-tab="calendar" role="tab" title="Calendar: pick a date to see that day's calls, agents, levels, demo trades and replay">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg><span class="lbl">Calendar</span></button>
+      <button data-tab="backtest" role="tab" title="Backtest: test the rules on a past period you choose">
+        <svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/></svg><span class="lbl">Backtest</span><span class="dotrun" id="btDot"></span></button>
+      <button data-tab="demo" role="tab" title="Demo account: AuEdge's own automatic demo trades (no real money)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14.5h2"/><path d="M7 6V4.5h10V6"/></svg><span class="lbl">Demo</span><span class="cnt" id="dmCount"></span></button>
+      </div>
+    </nav>
+  </main>
+  <main id="homeView" class="homeview" aria-label="Accounts and journal"></main>
+</div>
+
+<div id="modal" class="modal" hidden>
+  <div class="modalbox">
+    <button id="modalClose" title="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const API = "https://xaus.com/api/v1";
+const SPOT_POLL_MS = 15000;   // spot updates about once a minute upstream
+const FUT_POLL_MS  = 60000;   // futures candles are cached ~60 s by the API
+const STALE_AFTER_S = 180;    // our own staleness rule, based on updated_at vs now
+
+// Timeframes. Spot history comes from 2-min samples, so 1m spot is impossible.
+const TF = {
+  "1m":  { sec: 60,    spot: false, fut: { interval: "1m",  range: "1d"  } },
+  "5m":  { sec: 300,   spot: true,  fut: { interval: "5m",  range: "5d"  } },
+  "15m": { sec: 900,   spot: true,  fut: { interval: "15m", range: "1mo" } },
+  "30m": { sec: 1800,  spot: true,  fut: { interval: "30m", range: "1mo" } },
+  "1h":  { sec: 3600,  spot: true,  fut: { interval: "1h",  range: "3mo" } },
+  "4h":  { sec: 14400, spot: true,  fut: { interval: "1h",  range: "3mo", aggregate: true } },
+  "1d":  { sec: 86400, spot: false, fut: { interval: "1d",  range: "1y"  } },
+};
+
+const state = { src: "tv", tf: "15m", bars: [], lastSpot: null, token: 0, timer: null, sampleSec: 300 };
+// XAUS changed spot sampling from 2 min to 5 min once already, so read it live and
+// only offer spot timeframes whose candles contain at least 3 samples.
+const spotOk = name => TF[name].spot && TF[name].sec >= 3 * state.sampleSec;
+const tzShift = -new Date().getTimezoneOffset() * 60; // chart library shows UTC, so shift to local
+const $ = id => document.getElementById(id);
+
+// ---------- chart ----------
+// Chart colours follow the dark / light theme (CSS variables on :root).
+function chartColors() {
+  const v = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  return { layout: { background: { type: "solid", color: v("--bg") }, textColor: v("--chart-text") },
+           grid: { vertLines: { color: v("--chart-grid") }, horzLines: { color: v("--chart-grid") } },
+           rightPriceScale: { borderColor: v("--line") }, timeScale: { borderColor: v("--line") } };
+}
+const chart = LightweightCharts.createChart($("chart"), {
+  autoSize: true,
+  layout: { background: { type: "solid", color: "#131722" }, textColor: "#b2b5be", fontFamily: "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif" },
+  grid: { vertLines: { color: "rgba(42,46,57,.6)" }, horzLines: { color: "rgba(42,46,57,.6)" } },
+  rightPriceScale: { borderColor: "#2a2e39" },
+  timeScale: { borderColor: "#2a2e39", timeVisible: true, secondsVisible: false },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+});
+const candles = chart.addCandlestickSeries({
+  upColor: "#089981", downColor: "#f23645", borderVisible: false,
+  wickUpColor: "#089981", wickDownColor: "#f23645",
+});
+const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", color: "rgba(41,98,255,.3)" });
+chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+// ---------- helpers ----------
+async function getJSON(path) {
+  const r = await fetch(API + path, { cache: "no-store" });
+  if (r.status === 503) throw new Error("NO_PRICE");
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+const fmt = n => n == null ? "—" : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function ago(sec) {
+  if (sec < 90) return Math.round(sec) + " s ago";
+  if (sec < 5400) return Math.round(sec / 60) + " min ago";
+  if (sec < 172800) return (sec / 3600).toFixed(1) + " h ago";
+  return Math.round(sec / 86400) + " days ago";
+}
+function showMsg(text) { $("msg").style.display = text ? "flex" : "none"; $("msg").textContent = text || ""; }
+
+// Group raw points into candles of `sec` seconds. Each input has t plus either p (sample) or o/h/l/c/v (bar).
+function aggregate(points, sec) {
+  const out = [];
+  for (const pt of points) {
+    const t = Math.floor(pt.t / sec) * sec;
+    const o = pt.o ?? pt.p, h = pt.h ?? pt.p, l = pt.l ?? pt.p, c = pt.c ?? pt.p, v = pt.v ?? 0;
+    if (o == null || c == null) continue;
+    const last = out[out.length - 1];
+    if (last && last.time === t) {
+      last.high = Math.max(last.high, h); last.low = Math.min(last.low, l); last.close = c; last.volume += v;
+    } else {
+      out.push({ time: t, open: o, high: h, low: l, close: c, volume: v });
+    }
+  }
+  return out;
+}
+const toChart = b => ({ time: b.time + tzShift, open: b.open, high: b.high, low: b.low, close: b.close });
+
+function draw() {
+  candles.setData(state.bars.map(toChart));
+  volume.setData(state.src === "fut"
+    ? state.bars.map(b => ({ time: b.time + tzShift, value: b.volume, color: b.close >= b.open ? "rgba(38,166,154,.35)" : "rgba(239,83,80,.35)" }))
+    : []);
+  chart.timeScale().fitContent();
+}
+
+// ---------- spot price (header + live candle) ----------
+async function pollSpot() {
+  try {
+    const d = await getJSON("/spot?compact=1");
+    const price = d.spot_usd_oz ?? d.xau?.price;
+    const updatedSec = Date.parse(d.updated_at) / 1000;
+    const age = Date.now() / 1000 - updatedSec;
+    state.lastSpot = { price, t: updatedSec };
+
+    $("price").textContent = "$" + fmt(price);
+    updateChg(price);
+    $("psrc").textContent = d.price_source || "unknown";
+    $("updated").textContent = "Updated " + ago(age) + " · source: " + (d.price_source || "unknown");
+    $("fresh").title = $("updated").textContent;                   // shown on hover only, to keep the header on one row
+    const isFresh = age <= STALE_AFTER_S;
+    $("fresh").className = "badge " + (isFresh ? "fresh" : "stale");
+    $("fresh").textContent = isFresh ? "LIVE" : "STALE (market may be closed)";
+
+    if (state.src === "spot" && state.bars.length) addSpotTick(price, updatedSec);
+    updateGap();
+  } catch (e) {
+    $("fresh").className = "badge down";
+    $("fresh").textContent = e.message === "NO_PRICE" ? "NO PRICE AVAILABLE" : "CONNECTION PROBLEM";
+  }
+}
+
+function addSpotTick(price, t) {
+  const sec = TF[state.tf].sec;
+  const bucket = Math.floor(t / sec) * sec;
+  const last = state.bars[state.bars.length - 1];
+  if (bucket < last.time) return;                 // older than what we have
+  if (bucket === last.time) {
+    last.high = Math.max(last.high, price); last.low = Math.min(last.low, price); last.close = price;
+  } else {
+    state.bars.push({ time: bucket, open: price, high: price, low: price, close: price, volume: 0 });
+  }
+  candles.update(toChart(state.bars[state.bars.length - 1]));
+}
+
+function updateGap() {
+  if (state.src !== "fut" || !state.lastSpot || !state.bars.length) { $("gap").textContent = ""; return; }
+  const diff = state.bars[state.bars.length - 1].close - state.lastSpot.price;
+  $("gap").textContent = "Futures − spot: " + (diff >= 0 ? "+" : "") + fmt(diff) + " $";
+}
+
+// ---------- candle loading ----------
+async function loadSpot(token) {
+  const d = await getJSON("/intraday?symbol=xau&hours=48");
+  if (token !== state.token) return;
+  const pts = (d.points || []).filter(p => p.p != null);
+  if (!pts.length) throw new Error("No spot samples returned");
+  const gaps = pts.slice(-30).map((p, i, a) => i ? p.t - a[i - 1].t : 0).slice(1).sort((x, y) => x - y);
+  const measured = gaps.length ? Math.round(gaps[gaps.length >> 1] / 60) * 60 : 0;
+  state.sampleSec = Math.max(d.interval_seconds || 0, measured, 60);
+  if (!spotOk(state.tf)) { state.tf = Object.keys(TF).find(spotOk) || "1h"; }
+  buildTfButtons();
+  state.bars = aggregate(pts, TF[state.tf].sec);
+  if (state.lastSpot) addSpotTickSilently();
+  $("srcLabel").innerHTML = "<b>Spot XAU/USD</b> · candles aggregated from " + state.sampleSec / 60 + "-min samples (" +
+    (d.source || "xaus sampler") + ") + live price every " + SPOT_POLL_MS / 1000 + " s · last 48 h only";
+  draw();
+}
+function addSpotTickSilently() {
+  const { price, t } = state.lastSpot;
+  const sec = TF[state.tf].sec, bucket = Math.floor(t / sec) * sec, last = state.bars[state.bars.length - 1];
+  if (bucket === last.time) { last.high = Math.max(last.high, price); last.low = Math.min(last.low, price); last.close = price; }
+  else if (bucket > last.time) state.bars.push({ time: bucket, open: price, high: price, low: price, close: price, volume: 0 });
+}
+
+async function loadFutures(token) {
+  const cfg = TF[state.tf].fut;
+  const d = await getJSON(`/chart?symbol=xau&interval=${cfg.interval}&range=${cfg.range}`);
+  if (token !== state.token) return;
+  const pts = (d.points || []).filter(p => p.o != null && p.c != null);
+  if (!pts.length) throw new Error("No candles returned");
+  state.bars = cfg.aggregate ? aggregate(pts, TF[state.tf].sec)
+                             : pts.map(p => ({ time: p.t, open: p.o, high: p.h, low: p.l, close: p.c, volume: p.v || 0 }));
+  const lastBarAge = Date.now() / 1000 - pts[pts.length - 1].t;
+  $("srcLabel").innerHTML = "<b>Gold FUTURES (COMEX), not spot</b> · real OHLCV via Yahoo Finance proxy" +
+    (cfg.aggregate ? " · 4h built from 1h candles" : "") +
+    " · newest candle " + ago(lastBarAge) + " (Yahoo data is delayed)";
+  draw();
+  updateGap();
+}
+
+// TradingView's free embeddable chart: real-time ticks from its own feed (not XAUS).
+let tvLoaded = false;
+function ensureTv() {
+  if (tvLoaded) return;
+  tvLoaded = true;
+  const make = () => new TradingView.widget({
+    container_id: "tv", autosize: true, symbol: "OANDA:XAUUSD", interval: "15",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Etc/UTC",
+    theme: document.documentElement.dataset.theme === "light" ? "light" : "dark", style: "1", locale: "en", allow_symbol_change: true, withdateranges: true,
+    // Full toolset: left drawing toolbar (trend lines, Fibonacci, shapes, text, measure...),
+    // top toolbar (timeframes, chart types, indicators, compare), date ranges, screenshot button.
+    hide_side_toolbar: false, hide_top_toolbar: false, hide_legend: false,
+    // details panel off: its symbol title links out to tradingview.com; our top bar shows price and change instead
+    details: false, hotlist: false, calendar: false, save_image: true, enable_publishing: false,
+    overrides: { "mainSeriesProperties.showCountdown": true },   // TradingView's own time-to-close label
+  });
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/tv.js";
+  sc.onload = make;
+  sc.onerror = () => { tvLoaded = false; $("tv").innerHTML =
+    '<div style="padding:20px;color:#f0b429">Could not load the TradingView chart (no internet, or blocked). Use "XAUS spot + levels" instead.</div>'; };
+  document.head.appendChild(sc);
+}
+
+async function load() {
+  const token = ++state.token;
+  clearInterval(state.timer);
+  const isTv = state.src === "tv";
+  $("tv").style.display = isTv ? "block" : "none";
+  $("tfGroup").style.display = isTv ? "none" : "";
+  document.body.classList.toggle("src-tv", isTv);          // header: Zones only matters on the Spot / Futures chart
+  if (isTv) {
+    ensureTv(); showMsg("");
+    $("poll").textContent = "Live ticks from TradingView (OANDA feed). Agents use XAUS data, so prices may differ by a few cents to dollars.";
+    return;
+  }
+  showMsg("Loading…");
+  try {
+    if (state.src === "spot") await loadSpot(token); else await loadFutures(token);
+    if (token === state.token) showMsg("");
+  } catch (e) {
+    if (token !== state.token) return;
+    state.bars = []; draw();
+    showMsg("Candles unavailable right now (" + e.message + "). Nothing is shown rather than made-up candles. Retrying in 60 s.");
+  }
+  if (token !== state.token) return;                       // a newer load already took over
+  clearInterval(state.timer);
+  if (state.src === "fut") state.timer = setInterval(() => loadFutures(state.token).catch(() => {}), FUT_POLL_MS);
+  $("poll").textContent = state.src === "spot"
+    ? "Live price checked every 15 s (it changes about once a minute)"
+    : "Futures candles refreshed every 60 s";
+}
+
+// ---------- controls ----------
+function buildTfButtons() {
+  const g = $("tfGroup"); g.innerHTML = "";
+  for (const [name, cfg] of Object.entries(TF)) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    const ok = state.src === "spot" ? spotOk(name) : true;
+    b.disabled = !ok;
+    if (!ok) b.title = cfg.spot || name === "1m"
+      ? `Unavailable for spot: prices are sampled every ${state.sampleSec / 60} min, so ${name} candles would hold fewer than 3 prices`
+      : "Unavailable for spot: only 48 hours of spot samples exist";
+    if (name === state.tf) b.classList.add("on");
+    b.onclick = () => { state.tf = name; buildTfButtons(); load(); };
+    g.appendChild(b);
+  }
+}
+$("srcGroup").addEventListener("click", e => {
+  const src = e.target.closest("button")?.dataset.src; if (!src || src === state.src) return;
+  state.src = src;
+  for (const b of $("srcGroup").children) b.classList.toggle("on", b.dataset.src === src);
+  if (src === "spot" && !spotOk(state.tf)) state.tf = Object.keys(TF).find(spotOk) || "1h";
+  buildTfButtons(); load();
+});
+
+buildTfButtons();
+load();
+pollSpot();
+setInterval(pollSpot, SPOT_POLL_MS);
+setInterval(() => { if (state.src !== "tv" && state.bars.length === 0) load(); }, 60000); // retry after failures
+
+// =================== AGENTS PANEL (served by the local Python app) ===================
+// The server re-runs every agent every 15 minutes; the page asks again when the countdown ends.
+const LEVEL_STYLE = {
+  entry: { color: "#4c8dff", style: 2 }, stop: { color: "#ef5350", style: 0 }, target: { color: "#26a69a", style: 2 },
+};
+const agentState = { data: null, lines: [], nextAt: 0, loading: false };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const cls = b => /BUY/.test(b) ? "BUY" : /SELL/.test(b) ? "SELL" : /SPLIT|NO DATA|NA|ERROR/.test(b) ? "NA" : "WAIT";
+const list = (items, c = "") => items && items.length ? `<ul>${items.map(x => `<li class="${c}">${esc(x)}</li>`).join("")}</ul>` : "";
+const rowsTable = rows => rows && rows.length
+  ? `<table class="rows">${rows.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")}</table>` : "";
+function levelTable(levels) {
+  if (!levels || !levels.length) return "";
+  return `<table class="levels">${levels.map(l =>
+    `<tr><td>${esc(l.kind)}${l.note ? ` <span class="meta">· ${esc(l.note)}</span>` : ""}</td><td class="p">${fmt(l.price)}</td></tr>`).join("")}</table>`;
+}
+const LABELS = { wyckoff: "Wyckoff", elliott: "Elliott", smc: "Smart money", price_action: "Price action", trend: "Trend", macro: "Macro", skeptic: "Skeptic", sentiment: "Psychology", stophunt: "Stop-hunt", psychology: "Discipline" };
+
+const zoneTxt = z => z ? `${fmt(z[0])} – ${fmt(z[1])}` : "n/a";
+const agentLabel = r => r.status === "OK" ? (r.bias_label || r.bias) : (r.status === "ERROR" ? "ERROR" : "NO DATA");
+const lsGet = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+// Position size for a beginner: risk a fixed % of the account between entry and stop. 1 lot = 100 oz.
+function sizeText(plan) {
+  if (!plan || plan.stop == null || plan.entry_lo == null) return "";
+  const acct = parseFloat(lsGet("acct", "1000")), riskPct = parseFloat(lsGet("riskPct", "1"));
+  const entry = (plan.entry_lo + plan.entry_hi) / 2, dist = Math.abs(entry - plan.stop);
+  if (!(acct > 0) || !(riskPct > 0) || !(dist > 0)) return "";
+  const riskUsd = acct * riskPct / 100, oz = riskUsd / dist;
+  return `Size for $${acct.toLocaleString()} at ${riskPct}% risk: <b>${oz.toFixed(2)} oz ≈ ${(oz / 100).toFixed(2)} lots</b> (lose about $${riskUsd.toFixed(0)} if the stop is hit)`;
+}
+function hitRate(track, agent) {
+  const a = track && track.agents && track.agents[agent];
+  if (!a) return "track record: none yet";
+  const decided = a.hits + a.misses;
+  return decided ? `${a.hit_rate}% right (${a.hits}/${decided})` : `track record: ${a.pending} waiting to be scored`;
+}
+function poolLine(p) {
+  const tag = p.status === "hunted" ? ` <span class="hunted">hunted ${p.hunted_ago_min}m ago</span>` : "";
+  return `<div class="pool ${p.side}" title="${esc(p.sources.join(", "))}"><b>${fmt(p.price)}</b>
+    <span class="bar" style="width:${Math.min(100, p.strength * 9)}%"></span>${tag}</div>`;
+}
+
+// ---------- Market psychology: crowd mood gauge (Panic .. Euphoria) ----------
+const MOOD_CLS = { PANIC: "SELL", FEAR: "NA", NEUTRAL: "WAIT", GREED: "NA", EUPHORIA: "BUY" };
+function crowdCard(a) {
+  if (!a || a.status !== "OK") return "";
+  const g = +a.metrics.greed || 0, pos = Math.max(2, Math.min(98, (g + 6) / 13 * 100));   // score -6..+7 -> 0..100%
+  const rows = a.rows.slice(1).map(([k, v]) => `<div class="kv1"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("");
+  return `<div class="card crowd"><div class="sect">Market psychology · how the crowd is behaving</div>
+    <div class="moodhead"><b class="mood ${MOOD_CLS[a.metrics.mood] || "WAIT"}">${esc(a.metrics.mood)}</b>
+      <span class="bias ${cls(a.bias)}">${esc(a.bias === "WAIT" ? "No contrarian trade" : "Leans " + a.bias)}</span></div>
+    <div class="gauge"><span class="pin" style="left:${pos}%"></span></div>
+    <div class="gscale"><span>Panic</span><span>Fear</span><span>Neutral</span><span>Greed</span><span>Euphoria</span></div>
+    <div class="verdict" style="margin:8px 0">${esc(a.summary)}</div>
+    <div class="kvs1">${rows}</div></div>`;
+}
+
+// ---------- Psychology: your own trades today + a pre-trade checklist (kept in this browser) ----------
+const MY_MAX_TRADES = 2, MY_MAX_LOSSES = 2;
+function tradingDay() {      // gold's trading day starts 18:00 New York, so shift by 6 h before taking the date
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric",
+    month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + 6 * 3600e3)).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function myDay() {
+  try { const v = JSON.parse(lsGet("myDay", "{}")); if (v.day === tradingDay()) return v; } catch {}
+  return { day: tradingDay(), trades: 0, losses: 0 };
+}
+const CHECKS = [
+  ["risk", "I accept losing the risk amount on this trade, calmly"],
+  ["news", "No CPI, jobs report or Fed news in the next 30 minutes"],
+  ["revenge", "I am not trying to win back an earlier loss"],
+  ["stop", "I will set the stop now and never move it further away"],
+];
+function psychCard(psy, plan, my, genAt, userStop) {
+  const checks = JSON.parse(lsGet("checks", "{}"));
+  const mine = checks.at === genAt ? checks : { at: genAt };
+  const done = CHECKS.filter(([k]) => mine[k]).length;
+  const step = (key, val, label, max) => `<div class="step"><span class="meta">${label}</span>
+    <button data-my="${key}" data-d="-1" aria-label="Less">−</button><b class="${val >= max ? "warn" : ""}">${val}</b>
+    <button data-my="${key}" data-d="1" aria-label="More">+</button><span class="meta">/ ${max}</span></div>`;
+  const rows = psy && psy.status === "OK" ? psy.rows.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("") : "";
+  const warns = psy ? (psy.warnings || []).map(w => `<li>${esc(w)}</li>`).join("") : "";
+  return `<div class="card psych"><div class="sect">Discipline coach · your own psychology before every trade</div>
+    ${warns ? `<ul class="pwarn">${warns}</ul>` : `<div class="pok">No discipline problems right now. Trade only the plan.</div>`}
+    <div class="kvs">${rows}</div>
+    <div class="myday"><div class="sect" style="margin:10px 0 6px">My trades today (the ones you really took)</div>
+      ${step("trades", my.trades, "Trades", MY_MAX_TRADES)}${step("losses", my.losses, "Losses", MY_MAX_LOSSES)}
+      ${userStop || my.trades >= MY_MAX_TRADES || my.losses >= MY_MAX_LOSSES
+        ? `<div class="pstop">Your daily limit is reached. Close the platform for today; tomorrow is a new day.</div>` : ""}</div>
+    ${plan.stop != null && !userStop ? `<div class="sect" style="margin:12px 0 6px">Before you enter · ${done}/${CHECKS.length} ${done === CHECKS.length ? "· ready" : ""}</div>
+      ${CHECKS.map(([k, txt]) => `<label class="pchk"><input type="checkbox" data-chk="${k}" ${mine[k] ? "checked" : ""}> ${esc(txt)}</label>`).join("")}
+      ${done === CHECKS.length ? `<div class="pok">All checked. Enter only inside the entry zone, stop first.</div>`
+                               : `<div class="meta" style="margin-top:4px">Tick all four before entering. If you can't, skip this trade.</div>`}` : ""}
+  </div>`;
+}
+$("tab-plan").addEventListener("click", e => {
+  const b = e.target.closest("button[data-my]"); if (!b) return;
+  const v = myDay(); v[b.dataset.my] = Math.max(0, v[b.dataset.my] + +b.dataset.d);
+  if (v.losses > v.trades) v.trades = v.losses;
+  lsSet("myDay", JSON.stringify(v));
+  if (agentState.data) renderAgents(agentState.data);
+});
+$("tab-plan").addEventListener("change", e => {
+  const k = e.target.dataset?.chk; if (!k || !agentState.data) return;
+  const genAt = agentState.data.generated_at;
+  let c = {}; try { c = JSON.parse(lsGet("checks", "{}")); } catch {}
+  if (c.at !== genAt) c = { at: genAt };
+  c[k] = e.target.checked;
+  lsSet("checks", JSON.stringify(c));
+  renderAgents(agentState.data);
+});
+
+function weightText(r) {
+  if (r.vote_off) return `<span class="warn">Vote OFF</span> (review board / you) · still shows its view and levels`;
+  const p = r.perf, on = agentState.data && agentState.data.perf_weights_on;
+  if (!p || p.n < 100) return `Vote weight ${r.weight} · performance: ${p ? p.n : 0} of 100 scored calls so far`;
+  return on ? `Vote weight ${r.base_weight} × ${p.mult.toFixed(2)} = <b>${r.weight}</b> (right ${p.hit_rate}% of ${p.n} calls, 60 days)`
+            : `Vote weight ${r.weight} (fixed) · performance would give ×${p.mult.toFixed(2)} (right ${p.hit_rate}% of ${p.n})`;
+}
+function weightsTable(d) {
+  const rows = d.agents.filter(a => a.base_weight).map(a => {
+    const p = a.perf, m = p && p.n >= 100 ? p.mult : 1;
+    return `<tr><td><b>${esc(a.label)}</b></td><td class="d">${a.base_weight}</td>
+      <td style="width:28%"><div class="confbar ${m >= 1 ? "BUY" : "SELL"}"><span style="width:${Math.round((m - 0.5) * 100)}%"></span></div></td>
+      <td class="p ${m > 1 ? "up" : m < 1 ? "dn" : ""}">×${m.toFixed(2)}</td><td class="p">${a.weight}</td><td class="d">${a.perf_weight}</td>
+      <td class="d">${p ? `${p.hit_rate}% of ${p.n}` : "no calls yet"}</td></tr>`; }).join("");
+  const on = d.perf_weights_on;
+  return `<div class="card"><div class="sect">Agent vote weights · performance weights ${on ? "ON" : "OFF (shown only)"}</div>
+    ${on ? "" : `<div class="meta" style="margin-bottom:6px">The Chief uses the fixed default weights. The ×multiplier shows what performance weighting would do; turn it on with USE_PERFORMANCE_WEIGHTS=1 in .env if it proves useful.</div>`}
+    <table class="lvtable"><tr class="meta"><td>Agent</td><td class="d">Default</td><td></td><td>×</td><td>Used</td><td class="d">If on</td><td class="d">Right (60 days)</td></tr>${rows}</table>
+    <div class="meta" style="margin-top:6px">Updated every Sunday 18:00 New York from the last 60 days of scored calls (one per agent per 4 hours).
+      Needs 100 calls before an agent's weight moves; hit rates are pulled toward 50% so luck barely counts; limits ×0.5 to ×1.5.</div></div>`;
+}
+
+function renderAgents(d) {
+  const c = d.chief, plan = c.plan, tr = d.track, dc = d.data_check, p = c.price;
+  const dist = x => p == null || x == null ? "" : `${x >= p ? "+" : "−"}${fmt(Math.abs(x - p))} from price`;
+  const ok = d.agents.filter(a => a.status === "OK" && a.agent !== "psychology");
+  const psy = d.agents.find(a => a.agent === "psychology"), crowd = d.agents.find(a => a.agent === "sentiment");
+  const my = myDay(), myStop = my.trades >= MY_MAX_TRADES || my.losses >= MY_MAX_LOSSES;
+
+  // ---- Decision banner: the one thing a beginner should read first ----
+  const disc = /^(NO TRADE \(discipline\)|WAIT \(don't chase)/.test(plan.action);
+  const userStop = !dc.veto && myStop && plan.kind !== "none";
+  const tone = dc.veto || disc || userStop ? "NA" : plan.kind === "now" ? cls(plan.side || "") : "WAIT";
+  const action = dc.veto ? "NO TRADE NOW" : userStop ? "DONE FOR TODAY" : plan.action;
+  const why = dc.veto ? (dc.warnings[0] || dc.headline)
+    : userStop ? `You logged ${my.trades} trade(s) and ${my.losses} loss(es) today: your rule says stop. (The plan was: ${plan.action}.)`
+    : c.headline;
+  const mindCls = { CLEAR: "BUY", CAUTION: "NA", STOP: "SELL" }[psy?.bias_label] || "WAIT";
+  let lv = "";
+  if (plan.stop != null && !userStop) {
+    const entry = (plan.entry_lo + plan.entry_hi) / 2, risk = Math.abs(entry - plan.stop);
+    const r = x => risk ? ` · ${(Math.abs(x - entry) / risk).toFixed(1)}R` : "";
+    const oz = 100 * parseFloat(lsGet("lot", "0.1")), usd = x => `$${Math.round(Math.abs(x - entry) * oz).toLocaleString()}`;
+    lv = `<div class="lvls">
+      <div class="lv ent"><div class="k">Entry</div><div class="p">${fmt(entry)}</div>
+        <div class="d">${fmt(plan.entry_lo)} – ${fmt(plan.entry_hi)}</div></div>
+      <div class="lv stop"><div class="k">Stop loss</div><div class="p">${fmt(plan.stop)}</div><div class="d">−${usd(plan.stop)} at ${oz / 100} lot</div></div>
+      ${plan.be_at != null ? `<div class="lv tgt"><div class="k">Half off · 1R</div><div class="p">${fmt(plan.be_at)}</div><div class="d">then stop to entry</div></div>` : ""}
+      ${plan.t1 != null ? `<div class="lv tgt"><div class="k">Target</div><div class="p">${fmt(plan.t1)}</div><div class="d">+${usd(plan.t1)}${r(plan.t1)}</div></div>` : ""}
+    </div>`;
+  } else if (plan.kind === "watch" && !userStop) {
+    // WATCH: one level, plus what has to happen before it becomes a trade
+    const wl = plan.side === "BUY" ? plan.entry_hi : plan.entry_lo, sell = plan.side === "SELL";
+    lv = `<div class="lvls watch"><div class="lv ent"><div class="k">Watch level · alert only</div>
+        <div class="p">${fmt(wl)}</div><div class="d">${dist(wl) || "set a price alert here"}</div></div>
+      <div class="lv wnext"><div class="k">What to wait for</div>
+        <div class="wtxt">${sell ? `Price spikes <b>above ${fmt(wl)}</b> (buy stops get taken), then a 15m candle <b>closes back below</b> it.`
+                               : `Price dips <b>below ${fmt(wl)}</b> (sell stops get taken), then a 15m candle <b>closes back above</b> it.`}</div>
+        <div class="d">Then AuEdge gives a <b>${esc(plan.side)} NOW</b> with entry, stop and target. Don't enter at the alert itself.</div></div></div>`;
+  }
+  const t = c.today || {};
+  $("decision").className = `card decision ${tone}`;
+  $("decision").innerHTML = `
+    <div class="dtop"><span class="dlabel">Chief analyst decision</span><span class="spacer"></span>
+      <span class="bias ${cls(c.htf_label)}">${esc(c.htf_label)}</span>
+      ${dc.veto ? "" : `<span class="bias WAIT">Confidence ${c.confidence}%</span>`}</div>
+    <div class="action">${esc(action)}</div>
+    <div class="why">${esc(why)}</div>
+    <div class="mind">${(() => { const n = psy && (psy.rows || []).find(r => r[0] === "Next big news");
+        return n ? `<span class="bias NA" title="No new trades from 30 min before to 30 min after (60 after a Fed decision)">News: ${esc(n[1])}</span>` : ""; })()}
+      ${crowd && crowd.status === "OK" ?`<span class="bias ${MOOD_CLS[crowd.metrics.mood] || "WAIT"}" title="${esc(crowd.summary)}">Crowd: ${esc(crowd.metrics.mood)}</span>` : ""}
+      ${psy && psy.status === "OK" ? `<span class="bias ${mindCls}">Mindset: ${esc(psy.bias_label)}</span><span>${esc(psy.headline)}</span>` : ""}</div>
+    ${lv}
+    ${t.trend ? `<div class="today" title="${esc(t.tfs)}"><b class="${cls(t.side || "")}">TODAY: ${esc(t.trend)}</b> · ${esc(t.text)}</div>` : ""}
+    ${plan.stop != null ? `<div class="size">${sizeText(plan)} · <u>change account size</u></div>` : ""}`;
+
+  // ---- Plan tab ----
+  const nBuy = ok.filter(a => a.bias === "BUY").length, nSell = ok.filter(a => a.bias === "SELL").length;
+  const nWait = ok.length - nBuy - nSell, w = n => ok.length ? (100 * n / ok.length) : 0;
+  $("tab-plan").innerHTML = (plan.kind === "now" ? `<div class="card"><button class="primary" data-jn-call style="width:100%">＋ Add this ${esc(plan.side)} NOW call to my journal</button></div>` : "") +
+    crowdCard(crowd) + psychCard(psy, plan, my, d.generated_at, userStop) + `
+    <div class="card"><div class="sect">Timeframes · Daily to 15m</div>
+      <div class="tfgrid">${c.timeframes.map(x => `
+        <div class="tfbox ${cls(x.bias)}"><div class="k">${esc(x.tf)} · ${x.weight}%${x.role === "pullback" ? " · pullback" : ""}</div>
+          <div class="b">${esc(x.bias)}</div><div class="t clamp2">${esc(x.text)}</div></div>`).join("")}</div></div>
+    <div class="card"><div class="sect">What to do</div>
+      <ol class="steps">${plan.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+      ${plan.cancel_if ? `<div class="cancel">Cancel: ${esc(plan.cancel_if)}</div>` : ""}</div>
+    <div class="card"><div class="sect">Agent vote · ${nBuy} buy · ${nWait} wait · ${nSell} sell</div>
+      <div class="vote"><span style="width:${w(nBuy)}%;background:var(--up)"></span><span style="width:${w(nWait)}%;background:#3a414e"></span><span style="width:${w(nSell)}%;background:var(--down)"></span></div>
+      <div class="chips">${c.chips.map(ch => `<span class="chip ${cls(ch.label)}" title="${esc(ch.label)}">${esc(LABELS[ch.agent] || ch.agent)}: ${esc(ch.label)}</span>`).join("")}</div></div>
+    <div class="card stopmap" title="Where stop losses are likely resting. Longer bar = more stops. Price is often pulled toward them.">
+      <div class="sect">Where stops are resting</div>
+      <div class="k">Buy stops above</div>${c.stops_above.slice(0, 3).reverse().map(poolLine).join("") || '<div class="meta">none near</div>'}
+      <div class="now">price ${p ? fmt(p) : "—"}</div>
+      ${c.stops_below.slice(0, 3).map(poolLine).join("") || '<div class="meta">none near</div>'}<div class="k">Sell stops below</div></div>
+    <div class="card"><div class="sect">Chief's reasoning</div>
+      <div class="verdict">${esc(c.verdict)}${c.ai_written ? `<span class="aitag">by Claude</span>` : ""}</div></div>`;
+
+  // ---- Agents tab ----
+  $("agCount").textContent = `${d.agents.filter(a => a.status === "OK").length}/${d.agents.length}`;
+  $("agentCards").innerHTML = d.agents.map((r, i) => {
+    const label = agentLabel(r);
+    return `
+    <div class="card tile ${cls(label)}" data-open="${i}" title="Click for full details">
+      <div class="hd"><span class="nm">${esc(r.label)}</span><span class="bias ${cls(label)}">${esc(label)}</span></div>
+      <div class="confbar"><span style="width:${r.confidence}%"></span></div>
+      <div class="sub">${esc(r.subtitle || r.timeframe)} · confidence ${r.confidence}% · ${esc(hitRate(tr, r.agent))}</div>
+      ${r.base_weight ? `<div class="sub">${weightText(r)}</div>` : ""}
+      <div class="sum clamp3">${esc(r.summary || r.headline || (r.reasons || []).join(" "))}</div>
+    </div>`; }).join("");
+
+  // ---- Levels tab: every price level, sorted, with the current price marked ----
+  const rows = [];
+  const add = (price, kind, kcls, src, note) => price != null && rows.push({ price, kind, kcls, src, note });
+  if (plan.stop != null) {
+    add(plan.entry_hi, "entry", "entry", "Chief plan", plan.kind === "now" ? "entry zone top" : "entry if hunted (top)");
+    if (plan.entry_lo !== plan.entry_hi) add(plan.entry_lo, "entry", "entry", "Chief plan", "entry zone bottom");
+    add(plan.stop, "stop", "stop", "Chief plan", "stop loss");
+    add(plan.t1, "target", "target", "Chief plan", "target 1");
+    add(plan.be_at, "target", "target", "Chief plan", "half off at 1R, then stop to entry");
+  }
+  c.stops_above.forEach(x => add(x.price, x.status === "hunted" ? "hunted" : "buy stops", "pool", "Stop map", x.sources.join(", ")));
+  c.stops_below.forEach(x => add(x.price, x.status === "hunted" ? "hunted" : "sell stops", "pool", "Stop map", x.sources.join(", ")));
+  d.agents.forEach(a => (a.levels || []).forEach(l => add(l.price, l.kind, ["stop", "target", "entry"].includes(l.kind) ? l.kind : "other",
+                                                          a.label, (l.note || "").replace(" (≈ spot, converted from futures)", ""))));
+  rows.sort((a, b) => b.price - a.price);
+  // Day-trading view: only levels price can realistically reach today (within one average daily range), plus the
+  // Chief's own plan levels. "All levels" also shows the far swing / weekly levels.
+  const rng = c.day_range, dayView = lsGet("lvMode", "day") !== "all" && rng && p != null;
+  const allN = rows.length;
+  if (dayView) rows.splice(0, rows.length, ...rows.filter(r => r.src === "Chief plan" || Math.abs(r.price - p) <= rng));
+  $("lvCount").textContent = rows.length || "";
+  const nowIdx = p == null ? -1 : rows.findIndex(r => r.price < p);
+  const row = r => `<tr><td class="p">${fmt(r.price)}</td><td><span class="kind ${r.kcls}">${esc(r.kind)}</span></td>
+    <td><b>${esc(r.src)}</b> <span class="meta">${esc(r.note)}</span></td><td class="d">${p != null ? (r.price >= p ? "+" : "−") + fmt(Math.abs(r.price - p)) : ""}</td></tr>`;
+  const nowRow = `<tr class="nowrow"><td class="p">${fmt(p)}</td><td colspan="3">◀ current price</td></tr>`;
+  const body = rows.map((r, i) => (i === nowIdx ? nowRow : "") + row(r)).join("") + (nowIdx === -1 && p != null ? nowRow : "");
+  $("tab-levels").innerHTML = `<div class="seg demomode">
+      <button data-lv="day" class="${dayView ? "on" : ""}">Today (±$${rng ? Math.round(rng) : "—"})</button>
+      <button data-lv="all" class="${dayView ? "" : "on"}">All levels</button></div>
+    <div class="card"><div class="sect">${dayView ? `Levels for today · within one average day's move ($${Math.round(rng)})` : "All levels"} · highest first · distance from price</div>
+    <table class="lvtable">${body || '<tr><td class="meta">No levels yet.</td></tr>'}</table>
+    ${dayView && allN > rows.length ? `<div class="meta" style="margin-top:6px">${allN - rows.length} far-away levels hidden (swing and weekly levels price is unlikely to reach today). Tap <b>All levels</b> to see them.</div>` : ""}</div>
+    <div class="card"><div class="sect">How to read it</div><div class="kvs1 lvhelp">
+      <div class="kv1"><span><span class="kind pool">BUY STOPS</span></span><b>Stop losses of sellers sit just above. Price is often pulled up to grab them, then can turn down.</b></div>
+      <div class="kv1"><span><span class="kind pool">SELL STOPS</span></span><b>Stop losses of buyers sit just below. Often swept before a move up.</b></div>
+      <div class="kv1"><span><span class="kind pool">HUNTED</span></span><b>Those stops were already taken. Less magnetic now.</b></div>
+      <div class="kv1"><span><span class="kind other">RESISTANCE / SUPPORT</span></span><b>Where price turned before. Expect a reaction, not a certain turn.</b></div>
+      <div class="kv1"><span><span class="kind entry">ENTRY</span> <span class="kind stop">STOP</span> <span class="kind target">TARGET</span></span><b>A trade idea's levels. Only "Chief plan" levels are AuEdge's actual call; others are one agent's view.</b></div>
+      <div class="kv1"><span>+ / − number</span><b>How far the level is above (+) or below (−) the current price, in dollars.</b></div>
+    </div></div>`;
+
+  // ---- Track record tab ----
+  const T = tr && tr.trades;
+  $("tab-track").innerHTML = weightsTable(d) + (!tr ? `<div class="card meta">Track record unavailable.</div>` : `
+    <div class="card"><div class="sect">Chief's "BUY / SELL NOW" trades (live, since the app first ran)</div>
+      <div class="stats">
+        <div class="stat"><div class="v" style="color:var(--up)">${T.won}</div><div class="k">won</div></div>
+        <div class="stat"><div class="v" style="color:var(--down)">${T.lost}</div><div class="k">lost</div></div>
+        <div class="stat"><div class="v">${T.win_rate != null ? T.win_rate + "%" : "—"}</div><div class="k">win rate</div></div>
+        <div class="stat"><div class="v">${T.avg_r != null ? (T.avg_r > 0 ? "+" : "") + T.avg_r + "R" : "—"}</div><div class="k">average result</div></div>
+      </div>
+      <div class="meta" style="margin-top:6px">${T.open} open · ${T.expired} expired after 24h. Won = target 1 reached before the stop.</div>
+      ${T.recent.length ? `<table class="lvtable" style="margin-top:6px">${T.recent.map(x => `<tr><td>${new Date(x.ts * 1000).toLocaleString()}</td>
+        <td><span class="bias ${cls(x.side)}">${x.side}</span></td><td class="p">${fmt(x.entry)}</td><td>${esc(x.status)}</td>
+        <td class="d">${x.result_r != null ? x.result_r + "R" : ""}</td></tr>`).join("")}</table>` : ""}</div>
+    <div class="card"><div class="sect">Agents: direction right after 4 hours?</div>
+      <table class="lvtable">${Object.entries(tr.agents).map(([k, a]) => `<tr><td><b>${esc(LABELS[k] || (k === "chief" ? "Chief direction" : k))}</b></td>
+        <td style="width:40%"><div class="confbar ${a.hit_rate >= 50 ? "BUY" : "SELL"}"><span style="width:${a.hit_rate ?? 0}%"></span></div></td>
+        <td class="p">${a.hit_rate != null ? a.hit_rate + "%" : "—"}</td>
+        <td class="d">${a.hits} right · ${a.misses} wrong · ${a.pending} waiting</td></tr>`).join("") || '<tr><td class="meta">Nothing scored yet.</td></tr>'}</table>
+      <div class="meta" style="margin-top:6px">Right = price moved at least $3 their way 4 hours later. About 50% is a coin flip. Calls repeat every 15 minutes, so they are not independent. Past results do not guarantee future results.</div></div>`);
+
+  $("aStatus").innerHTML = `Updated ${new Date(d.generated_at).toLocaleTimeString()}` +
+    ` · data: <b class="${dc.veto ? "warn" : ""}">${esc(dc.headline)}</b>` +
+    (d.ai_enabled ? " · Claude summary on" : "") +
+    (d.adapter_problems.length ? ` · adapter problems: ${esc(d.adapter_problems.join("; "))}` : "") +
+    " · click the decision or any agent for details";
+}
+
+function openDetails(which) {
+  const d = agentState.data; if (!d) return;
+  let html;
+  if (which === "chief") {
+    const c = d.chief, plan = c.plan, tr = d.track;
+    const poolRows = (arr, name) => arr.map(p => `<tr><td class="k">${name}: ${fmt(p.price)}</td><td class="v">strength ${p.strength}` +
+      `${p.status === "hunted" ? ` · HUNTED ${p.hunted_ago_min} min ago` : " · untouched"} · ${esc(p.sources.join(", "))}</td></tr>`).join("");
+    const recent = tr && tr.trades && tr.trades.recent.length ? `<h2 style="margin-top:14px">Recent Chief trades</h2><table class="rows">` +
+      tr.trades.recent.map(t => `<tr><td class="k">${new Date(t.ts * 1000).toLocaleString()} · ${t.side}</td>
+        <td class="v">entry ${fmt(t.entry)} · stop ${fmt(t.stop)} · target ${fmt(t.t1)} · <b>${t.status}</b>${t.result_r != null ? ` (${t.result_r}R)` : ""}</td></tr>`).join("") + "</table>" : "";
+    const agentRec = tr ? `<table class="rows">${Object.entries(tr.agents).map(([k, a]) =>
+      `<tr><td class="k">${esc(LABELS[k] || (k === "chief" ? "Chief direction" : k))}</td><td class="v">${a.hit_rate != null ? a.hit_rate + "% right" : "not scored yet"} · ${a.hits} right, ${a.misses} wrong, ${a.flat} flat, ${a.pending} waiting</td></tr>`).join("")}</table>` : "";
+    html = `<h2>Chief analyst <span class="bias ${cls(c.htf_label)}">${esc(c.htf_label)}</span>
+        <span class="bias ${cls(c.intraday_label)}">${esc(c.intraday_label)}</span>
+        <span class="meta" style="font-weight:400">confidence ${esc(c.confidence_word)} (${c.confidence}%)</span></h2>
+      <div class="plan ${cls(plan.action)}" style="margin-top:8px"><div class="act">${esc(plan.action)}</div>
+        <ol class="steps full">${plan.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+        ${plan.cancel_if ? `<div class="meta">Cancel: ${esc(plan.cancel_if)}</div>` : ""}
+        ${plan.stop != null ? `<table class="levels"><tr><td>Entry</td><td class="p">${fmt(plan.entry_lo)} – ${fmt(plan.entry_hi)}</td></tr>
+          <tr><td>Stop loss</td><td class="p">${fmt(plan.stop)}</td></tr>
+          ${plan.t1 != null ? `<tr><td>Target 1</td><td class="p">${fmt(plan.t1)}${plan.rr1 ? ` (reward ${plan.rr1}× risk)` : ""}</td></tr>` : ""}
+          ${plan.be_at != null ? `<tr><td>Half off at 1R</td><td class="p">${fmt(plan.be_at)} (then move the stop to the entry)</td></tr>` : ""}</table>` : ""}
+        <div class="calc">Account $ <input id="acctIn" type="number" min="0" value="${esc(lsGet("acct", "1000"))}">
+          Risk % <input id="riskIn" type="number" min="0.1" step="0.1" value="${esc(lsGet("riskPct", "1"))}">
+          <div class="size" id="sizeOut">${sizeText(plan)}</div></div>
+      </div>
+      <div class="summary">${esc(c.verdict)}${c.ai_written ? `<span class="aitag">written by Claude from the agents' findings</span>` : ""}</div>
+      <table class="rows">${c.timeframes.map(t => `<tr><td class="k">${esc(t.tf)} (${t.weight}%): ${esc(t.bias)}${t.role === "pullback" ? " · pullback" : ""}</td><td class="v">${esc(t.text)}</td></tr>`).join("")}</table>
+      <h2 style="margin-top:14px">Stop-loss map</h2>
+      <table class="rows">${poolRows(c.stops_above.slice().reverse(), "Buy stops")}${poolRows(c.stops_below, "Sell stops")}</table>
+      <h2 style="margin-top:14px">Track record</h2>${agentRec}${recent}
+      <div class="meta">Agents are scored 4 hours after each call (right = price moved at least $3 their way). Calls repeat every 15 minutes, so counts grow quickly and are not independent trades. Past results do not guarantee future results.</div>
+      ${list(c.reasons)}${list(c.warnings, "warn")}`;
+  } else {
+    const r = d.agents[+which]; const label = agentLabel(r);
+    html = `<h2>${esc(r.label)} <span class="bias ${cls(label)}">${esc(label)}</span>
+        <span class="meta" style="font-weight:400">${esc(r.subtitle || r.timeframe)} · confidence ${r.confidence}% · ${esc(hitRate(d.track, r.agent))}</span></h2>
+      ${rowsTable(r.rows)}
+      <div class="summary">${esc(r.summary || r.headline)}</div>
+      ${r.status !== "OK" ? list(r.reasons, "warn") : ""}${list(r.warnings, "warn")}${levelTable(r.levels)}`;
+  }
+  $("modalBody").innerHTML = html;
+  $("modal").hidden = false;
+  const upd = () => { lsSet("acct", $("acctIn").value); lsSet("riskPct", $("riskIn").value);
+    $("sizeOut").innerHTML = sizeText(d.chief.plan); renderAgents(d); };
+  if ($("acctIn")) { $("acctIn").oninput = upd; $("riskIn").oninput = upd; }
+}
+$("panel").addEventListener("click", e => {
+  const el = e.target.closest("[data-open]"); if (el) openDetails(el.dataset.open);
+});
+$("modalClose").addEventListener("click", () => { $("modal").hidden = true; });
+$("modal").addEventListener("click", e => { if (e.target.id === "modal") $("modal").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").hidden = true; });
+
+function drawLevels() {
+  agentState.lines.forEach(l => candles.removePriceLine(l));
+  agentState.lines = [];
+  // Agent prices are spot prices, so only draw them on the XAUS spot chart.
+  if (!$("showLv").checked || state.src !== "spot" || !agentState.data) return;
+  const c = agentState.data.chief, plan = c.plan;
+  const add = (price, color, style, title, width = 1) => agentState.lines.push(candles.createPriceLine(
+    { price, color, lineStyle: style, lineWidth: width, axisLabelVisible: true, title }));
+  c.stops_above.slice(0, 3).forEach(p => add(p.price, p.status === "hunted" ? "#6b7280" : "#f0b429", 3, p.status === "hunted" ? "HUNTED" : "BUY STOPS"));
+  c.stops_below.slice(0, 3).forEach(p => add(p.price, p.status === "hunted" ? "#6b7280" : "#f0b429", 3, p.status === "hunted" ? "HUNTED" : "SELL STOPS"));
+  if (plan.stop != null) {
+    add((plan.entry_lo + plan.entry_hi) / 2, "#4c8dff", 2, plan.kind === "now" ? "ENTRY" : "ENTRY IF", 2);
+    add(plan.stop, "#ef5350", 0, "STOP", 2);
+    if (plan.t1 != null) add(plan.t1, "#26a69a", 2, "TARGET 1", 2);
+    if (plan.be_at != null) add(plan.be_at, "#26a69a", 1, "HALF @1R", 1);
+  }
+}
+
+async function loadAgents(refresh = false) {
+  if (agentState.loading) return;
+  agentState.loading = true;
+  $("refreshBtn").disabled = true;
+  if (refresh) $("aStatus").textContent = "Running all agents…";
+  try {
+    const r = await fetch(`/api/analysis${refresh ? "?refresh=true" : ""}`, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    agentState.data = d;
+    agentState.nextAt = Date.now() + (d.next_in_s + 2) * 1000;
+    renderAgents(d);
+    drawLevels();
+    nowAlert(d);
+    if (window.jOnAnalysis) jOnAnalysis();          // Home screen: refresh the "AuEdge right now" card
+  } catch (e) {
+    agentState.nextAt = Date.now() + 60000;
+    $("aStatus").innerHTML = `<span class="warn">Agents unavailable (${esc(e.message)}). ` +
+      `Start the dashboard with run.bat and open http://127.0.0.1:8000. Retrying in 1 minute.</span>`;
+  } finally {
+    agentState.loading = false;
+    $("refreshBtn").disabled = false;
+  }
+}
+function tickNext() {
+  if (!agentState.nextAt) return;
+  const left = Math.max(0, Math.round((agentState.nextAt - Date.now()) / 1000));
+  $("nextIn").textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+  if (left === 0) loadAgents();
+}
+$("refreshBtn").addEventListener("click", () => loadAgents(true));
+$("tab-levels").addEventListener("click", e => {
+  const b = e.target.closest("[data-lv]"); if (!b || !agentState.data) return;
+  lsSet("lvMode", b.dataset.lv); renderAgents(agentState.data); drawLevels();
+});
+$("showLv").addEventListener("change", drawLevels);
+const _loadChart = load;
+load = async () => { await _loadChart(); drawLevels(); if (typeof applyCallMarkers === "function") applyCallMarkers(); };
+
+loadAgents();
+setInterval(tickNext, 1000);
+
+// ---------- candle countdown (like TradingView's "countdown to bar close") ----------
+let cdLine = null;
+function fmtLeft(tfSec) {
+  const left = tfSec - Math.floor(Date.now() / 1000) % tfSec;
+  const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0");
+}
+function setPill(tf, tfSec) {
+  const left = tfSec - Math.floor(Date.now() / 1000) % tfSec;
+  $("cdPill").classList.remove("off");
+  $("cdTf").textContent = tf;
+  $("countdown").textContent = fmtLeft(tfSec);
+  $("cdRing").style.strokeDashoffset = (50.27 * left / tfSec).toFixed(2);     // ring fills as the candle runs
+  $("cdPill").classList.toggle("soon", left <= 60 && left > 15);
+  $("cdPill").classList.toggle("now", left <= 15);
+}
+function tickCountdown() {
+  const isTv = state.src === "tv";
+  $("tvCd").style.display = isTv ? "flex" : "none";
+  if (isTv) {
+    const tf = $("tvCdTf").value, txt = fmtLeft(TF[tf].sec);
+    $("tvCdTxt").textContent = txt;
+    setPill(tf, TF[tf].sec);
+    if (cdLine) { candles.removePriceLine(cdLine); cdLine = null; }
+    return;
+  }
+  const tfSec = TF[state.tf]?.sec;
+  if (!tfSec || tfSec >= 86400 || !state.bars.length) {     // daily candles follow exchange sessions: no countdown
+    $("cdPill").classList.add("off");
+    if (cdLine) { candles.removePriceLine(cdLine); cdLine = null; }
+    return;
+  }
+  const txt = fmtLeft(tfSec);
+  setPill(state.tf, tfSec);
+  $("cdPill").title = "Time left before the current candle closes" + (state.src === "fut" ? " (futures data is delayed)." : ".");
+  const price = state.bars[state.bars.length - 1].close;
+  if (!cdLine) cdLine = candles.createPriceLine({ price, color: "#8a92a0", lineVisible: false, axisLabelVisible: true, title: txt });
+  else cdLine.applyOptions({ price, title: txt });
+}
+setInterval(tickCountdown, 1000);
+
+$("bigBtn").addEventListener("click", () => setWide(!document.querySelector(".layout").classList.contains("wide")));
+
+// ---------- tabs (remembered per browser) ----------
+const TAB_TITLES = { plan: ["Plan", "Chief analyst · Daily to 15m"], agents: ["Agents", "What each analysis agent says"],
+                     levels: ["Levels", "Every level, highest first"], track: ["Track record", "How past calls turned out"],
+                     backtest: ["Backtest", "Test the rules on a past period"],
+                     news: ["News", "US events that move gold"], demo: ["Demo account", "Automatic demo trades · no real money"],
+                     calendar: ["Calendar", "Tap a date: calls, agents, levels, trades, replay"] };
+function setWide(wide) {
+  document.querySelector(".layout").classList.toggle("wide", wide);
+  $("bigBtn").title = wide ? "Show the analysis panel again" : "Bigger chart: hide the analysis panel";
+  $("bigBtn").classList.toggle("on", wide);
+  $("bigBtn").classList.toggle("on", wide);
+}
+const MORE_TABS = ["agents", "track", "calendar", "backtest", "demo"];          // grouped under "Analysis"
+function showTab(name) {
+  for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
+    b.classList.toggle("on", b.dataset.tab === name);
+    b.setAttribute("aria-selected", b.dataset.tab === name);
+  }
+  const mb = document.querySelector(".railmorebtn");
+  if (mb) { mb.classList.toggle("on", MORE_TABS.includes(name));
+    mb.querySelector(".lbl").textContent = MORE_TABS.includes(name) ? TAB_TITLES[name][0] === "Track record" ? "Record" : TAB_TITLES[name][0].split(" ")[0] : "Analysis"; }
+  if ($("railMore")) { $("railMore").hidden = true; mb && mb.setAttribute("aria-expanded", "false"); }
+  for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== "tab-" + name;
+  $("ptitle").textContent = TAB_TITLES[name][0];
+  $("psub").textContent = TAB_TITLES[name][1];
+  lsSet("tab", name);
+}
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.more) {                       // open / close the Analysis group
+    const m = $("railMore"), open = m.hidden;
+    m.hidden = !open; b.setAttribute("aria-expanded", String(open));
+    return;
+  }
+  if (b.dataset.go === "chart") { scrollTo({ top: 0, behavior: "smooth" }); return; }
+  if (innerWidth <= 1000) { showTab(b.dataset.tab); $("panel").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  const wide = document.querySelector(".layout").classList.contains("wide");
+  if (b.classList.contains("on") && !wide && innerWidth > 1000) { setWide(true); return; }
+  showTab(b.dataset.tab);
+  if (wide) setWide(false);
+});
+showTab(["plan", "agents", "levels", "track", "backtest", "news", "demo", "calendar"].includes(lsGet("tab", "plan")) ? lsGet("tab", "plan") : "plan");
+document.addEventListener("click", e => { if ($("railMore") && !$("railMore").hidden && !e.target.closest("#tabs")) { $("railMore").hidden = true;
+  document.querySelector(".railmorebtn").setAttribute("aria-expanded", "false"); } });
+// the backtest "running" dot also shows on the Analysis button
+new MutationObserver(() => $("moreDot").classList.toggle("on", $("btDot").classList.contains("on"))).observe($("btDot"), { attributes: true });
+
+// ---------- market status (same hours as the server's data check) ----------
+function marketStatus() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short",
+    hour: "numeric", hourCycle: "h23" }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const wd = parts.weekday, h = +parts.hour;
+  const closed = wd === "Sat" || (wd === "Fri" && h >= 17) || (wd === "Sun" && h < 18);
+  const el = $("mkt");
+  if (closed) { el.className = "badge stale"; el.textContent = "MARKET CLOSED · weekend"; }
+  else if (h === 17) { el.className = "badge stale"; el.textContent = "DAILY BREAK"; }
+  else { el.className = "badge fresh"; el.textContent = "MARKET OPEN"; }
+}
+marketStatus();
+setInterval(marketStatus, 30000);
+
+// ---------- 24-hour change next to the price ----------
+const ref24 = { price: null, at: 0 };
+async function loadRef24() {
+  try {
+    const d = await getJSON("/intraday?symbol=xau&hours=48");
+    const target = Date.now() / 1000 - 86400, pts = (d.points || []).filter(x => x.p != null);
+    if (!pts.length) return;
+    ref24.price = pts.reduce((best, x) => Math.abs(x.t - target) < Math.abs(best.t - target) ? x : best).p;
+    ref24.at = Date.now();
+    if (state.lastSpot) updateChg(state.lastSpot.price);
+  } catch {}
+}
+function updateChg(price) {
+  if (ref24.price == null || price == null) { $("chg").textContent = ""; return; }
+  const diff = price - ref24.price, pct = diff / ref24.price * 100;
+  $("chg").className = "chg " + (diff >= 0 ? "up" : "dn");
+  $("chg").textContent = `${diff >= 0 ? "▲ +" : "▼ −"}${fmt(Math.abs(diff))} (${diff >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(2)}%) 24h`;
+}
+loadRef24();
+setInterval(loadRef24, 10 * 60000);
+
+// ---------- Backtest tab: pick a period, run the same agents on past candles, keep every run ----------
+const bt = { info: null, timer: null, shown: null };
+const ymd = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+const dshort = ts => new Date(ts * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "2-digit" });
+const rcls = v => v > 0 ? "up" : v < 0 ? "dn" : "";
+const rtxt = v => v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}R`;
+
+async function btLoadInfo() {
+  try { bt.info = await (await fetch("/api/backtest/info", { cache: "no-store" })).json(); } catch { bt.info = null; }
+}
+function btLimits() {
+  const r = bt.info && bt.info.range;
+  if (!r || !r.cached) return null;
+  const step = $("btStep") ? $("btStep").value : "auto";
+  return { min: ymd(step === "15m" ? r.first_15m : r.first_1h), max: ymd(r.last), r };
+}
+function btEstimate() {
+  const lim = btLimits(); if (!lim || !$("btFrom").value || !$("btTo").value) return;
+  const days = (Date.parse($("btTo").value) - Date.parse($("btFrom").value)) / 864e5 + 1;
+  const step = $("btStep").value === "auto" ? (Date.parse($("btFrom").value) / 1000 >= lim.r.first_15m && days <= 45 ? "15m" : "1h") : $("btStep").value;
+  const sec = Math.round(15 + days * (step === "15m" ? 2.5 : 2));
+  $("btHint").textContent = `${Math.max(0, Math.round(days))} days · steps every ${step === "15m" ? "15 minutes (precise)" : "hour (1H stands in for 15m before the last month)"} · roughly ${sec < 90 ? sec + " s" : Math.round(sec / 60) + " min"}.`;
+}
+function btPreset(days) {
+  const lim = btLimits(); if (!lim) return;
+  const to = Date.parse(lim.max), from = Math.max(Date.parse(lim.min), to - (days - 1) * 864e5);
+  $("btFrom").value = ymd(from / 1000); $("btTo").value = lim.max;
+  for (const b of document.querySelectorAll("#btPresets button")) b.classList.toggle("on", +b.dataset.days === days);
+  btEstimate();
+}
+function renderBacktestTab() {
+  const lim = btLimits();
+  const runs = (bt.info && bt.info.runs) || [];
+  $("tab-backtest").innerHTML = `
+    <div class="card" id="hcCard"><div class="meta">Loading the health check…</div></div>
+    <div class="card"><div class="sect">Choose a period to test</div>
+      ${!lim ? `<div class="warn">No downloaded history yet. Run <b>backtest.py</b> once (see README_backtest.md), then reopen this tab.</div>` : `
+      <div class="seg presets" id="btPresets">
+        <button data-days="7">Last week</button><button data-days="30">Last month</button>
+        <button data-days="91">3 months</button><button data-days="183">6 months</button></div>
+      <div class="frm"><label>From <input type="date" id="btFrom" min="${lim.min}" max="${lim.max}"></label>
+        <label>To <input type="date" id="btTo" min="${lim.min}" max="${lim.max}"></label></div>
+      <div class="frm"><label>Steps <select id="btStep">
+          <option value="auto">Auto (best for the period)</option>
+          <option value="15m">Every 15 min · precise · last ~month only</option>
+          <option value="1h">Every hour · faster · up to 6 months</option></select></label>
+        <label>Cost per side $ <input type="number" id="btSpread" min="0" max="5" step="0.05" value="0.30"></label></div>
+      <div class="frm"><label>Account $ <input type="number" id="btAcct" min="100" step="1000" value="${esc(lsGet("btAcct", "25000"))}"></label>
+        <label>Lot <input type="number" id="btLot" min="0.01" step="0.01" value="${esc(lsGet("btLot", "0.1"))}"></label>
+        <label>Target R:R <input type="number" id="btRR" min="0.5" max="10" step="0.05" placeholder="plan's" value="${esc(lsGet("btRR", ""))}"></label>
+        <label><input type="checkbox" id="btHalf" ${lsGet("btHalf", "1") === "1" ? "checked" : ""}> Half off at 1R</label>
+        <label title="Stop new trades for the day once the day's result reaches this loss (0 = off)">Day loss limit $ <input type="number" id="btDayLoss" min="0" step="50" value="${esc(lsGet("btDayLoss", "350"))}"></label>
+        <label title="Stop new trades for the day once the day's result reaches this profit (0 = off)">Day profit target $ <input type="number" id="btDayProfit" min="0" step="50" value="${esc(lsGet("btDayProfit", "150"))}"></label>
+        <label title="Weekly vote weights from each agent's past results (walk-forward: only data known before each week)"><input type="checkbox" id="btAdapt" ${lsGet("btAdapt", "0") === "1" ? "checked" : ""}> Performance weights</label></div>
+      <div class="frm"><b style="color:var(--text)">Rules</b>
+        <label title="Same as live: stop after 2 losing trades in a day, wait 60 minutes after a loss, don't chase a big 1-hour move"><input type="checkbox" id="btLive" ${lsGet("btLive", "1") === "1" ? "checked" : ""}> Live discipline rules</label>
+        <label title="Stress test: double the cost per side and lose an extra $0.50 every time a stop fills (real fills are often worse)"><input type="checkbox" id="btHarsh" ${lsGet("btHarsh", "0") === "1" ? "checked" : ""}> Harsh costs</label></div>
+      <div class="frm"><b style="color:var(--text)">Quality filters</b> <span class="meta">(experiments, off in live)</span>
+        <label title="Only open trades between 07:00 London and 12:00 New York, the busiest hours"><input type="checkbox" id="btFSess" ${lsGet("btFSess", "0") === "1" ? "checked" : ""}> London / NY hours only</label>
+        <label title="Only trade when the Daily and 4H trends both point the trade's way"><input type="checkbox" id="btFTrend" ${lsGet("btFTrend", "0") === "1" ? "checked" : ""}> Daily + 4H agree</label>
+        <label title="Only trade right after stops on the other side were hunted"><input type="checkbox" id="btFHunt" ${lsGet("btFHunt", "0") === "1" ? "checked" : ""}> After a stop hunt only</label></div>
+      <div class="meta" id="btHint"></div>
+      <div class="frm"><button class="primary" id="btRun">Run backtest</button><span class="meta">Data available ${lim.min} to ${lim.max}</span></div>
+      <div id="btProg"></div>`}
+    </div>
+    <div id="btResult"></div>
+    <div class="card"><div class="sect">Saved runs · click to open</div>
+      ${runs.length ? `<table class="lvtable btruns">${runs.map(r => `<tr data-run="${r.id}" class="${bt.shown === r.id ? "sel" : ""}">
+        <td>${dshort(r.start)} – ${dshort(r.end - 86400)}</td><td class="meta">${r.step}</td><td>${r.n} trades</td>
+        <td>${r.win_rate != null ? r.win_rate + "%" : "—"}</td><td class="p ${rcls(r.total_r)}">${rtxt(r.total_r)}</td>
+        <td class="p ${rcls(r.total_usd)}">${r.total_usd != null ? (r.total_usd < 0 ? "−" : "+") + "$" + Math.abs(Math.round(r.total_usd)).toLocaleString() : ""}</td>
+        <td class="d">${new Date(r.made_at * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td></tr>`).join("")}</table>`
+        : `<div class="meta">No runs yet. Pick a period above and press Run.</div>`}
+    </div>`;
+  if (lim) { btPreset(30); }
+  hcRender();
+}
+
+// Health check: is the edge real? Today's rules vs harsher costs, quality filters, and each agent left out,
+// each split into the first and second half of the period (a change only counts if it helps in both halves).
+async function hcLoad() {
+  try { bt.health = await (await fetch("/api/health/latest", { cache: "no-store" })).json(); } catch { bt.health = null; }
+  hcRender();
+}
+function hcRender() {
+  const el = $("hcCard"); if (!el) return;
+  const h = bt.health, running = bt.running && String(bt.runningId || "").startsWith("hc_");
+  const usd = demoUsd, uc = demoCls;
+  const runBtns = `<div class="frm"><button class="primary" data-hc="month" ${bt.running ? "disabled" : ""}>Run health check · last month (about 7 min)</button>
+      <button data-hc="6m" ${bt.running ? "disabled" : ""} title="Hourly steps over the whole history: slower, but many more trades">6 months · hourly (slower)</button></div>`;
+  const head = `<div class="sect">Health check · is the edge real?</div>`;
+  if (!h || !h.id) { el.innerHTML = head + `<p class="verdict">Compares today's rules with harsher costs, three quality filters and each agent left out,
+      and checks every result in the first and second half of the period separately.</p>` + runBtns + `<div id="hcProg"></div>`; return; }
+  const V = { survives: ["BUY", "OK"], fails: ["SELL", "FAILS"], helps: ["BUY", "HELPS"], promising: ["NA", "PROMISING"], hurts: ["SELL", "HURTS"],
+              mixed: ["NA", "MIXED"], useful: ["BUY", "USEFUL"], noise: ["NA", "NOISE"] };
+  const base = h.variants[0], pp = h.params;
+  const row = v => { const [c, w] = V[v.verdict] || ["NA", v.verdict];
+    const dlt = v.key === "base" ? "" : ` <span class="${uc(v.usd - base.usd)}">(${usd(v.usd - base.usd)} vs today)</span>`;
+    return `<div class="hcrow"><div class="hctop"><b>${esc(v.label)}</b><span class="bias ${c}">${w}</span></div>
+      <div class="meta">${v.n} trades · ${v.win_rate != null ? v.win_rate + "% won" : "—"} · <b class="${uc(v.usd)}">${usd(v.usd)}</b>${dlt}
+        · halves <span class="${uc(v.h1_usd)}">${usd(v.h1_usd)}</span> / <span class="${uc(v.h2_usd)}">${usd(v.h2_usd)}</span></div>
+      <div class="meta">${esc(v.note)}</div></div>`; };
+  const sec = (title, g) => { const rs = h.variants.filter(v => g.includes(v.group)); return rs.length ? `<div class="hcsec">${title}</div>` + rs.map(row).join("") : ""; };
+  const agents = h.variants.filter(v => v.group === "agent");
+  const useful = agents.filter(v => v.verdict === "useful").map(v => v.label.replace("Without ", "")),
+        hurts = agents.filter(v => v.verdict === "hurts").map(v => v.label.replace("Without ", "")),
+        noise = agents.filter(v => v.verdict === "noise").map(v => v.label.replace("Without ", ""));
+  const harsh = h.variants.find(v => v.key === "harsh"), good = h.variants.filter(v => v.group === "filter" && v.verdict === "helps");
+  const tips = [
+    `<b>Today's rules:</b> ${usd(base.usd)} on ${base.n} trades (${usd(base.h1_usd)} in the first half, ${usd(base.h2_usd)} in the second). ${esc(base.note)}`,
+    harsh ? `<b>Worse fills:</b> ${harsh.usd > 0 ? `still ${usd(harsh.usd)}. The edge survives realistic costs.` : `${usd(harsh.usd)}. The edge does not survive worse fills; don't trade it live yet.`}` : "",
+    `<b>Agents:</b> ${useful.length ? `clearly helping: ${esc(useful.join(", "))}. ` : "none clearly helps. "}${hurts.length ? `Hurting: ${esc(hurts.join(", "))}. ` : ""}${noise.length ? `No clear effect: ${esc(noise.join(", "))}.` : ""}`,
+    `<b>Quality filters:</b> ${good.length ? esc(good.map(v => v.label).join("; ")) + " helped in both halves. Re-check on 6 months before switching it on." : "none helped in both halves, so keep the current rules."}`,
+    base.n < 30 ? `<b>Caution:</b> only ${base.n} trades. Small samples swing a lot; the 6-month check gives more trades.` : ""].filter(Boolean);
+  el.innerHTML = head + `<div class="meta" style="margin-bottom:6px">${dshort(pp.first_t)} – ${dshort(pp.last_t)} · ${pp.step} steps · ${pp.lot} lot ·
+      first half until ${dshort(pp.mid)} · run ${new Date(h.made_at * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+    <ul class="btlines">${tips.map(t => `<li>${t}</li>`).join("")}</ul>
+    <div class="hclist">${sec("Today's rules", ["base", "rules"])}${sec("Cost stress test", ["costs"])}${sec("Quality filters (only trade when…)", ["filter"])}${sec("Leave one agent out", ["agent"])}</div>
+    <div class="meta" style="margin:6px 0">A change only counts when it is better (or worse) by more than $25 in <b>both</b> halves; anything else could be luck.
+      "Useful" agent = results get worse without it. Past results do not guarantee future results.</div>` + runBtns + `<div id="hcProg"></div>`;
+  if (running && bt.lastStatus) hcProgress(bt.lastStatus);
+}
+function hcProgress(st) {
+  if (!$("hcProg")) return;
+  const pr = st.progress || {}, pct = pr.total ? Math.min(100, Math.round(100 * pr.done / pr.total)) : 0;
+  $("hcProg").innerHTML = `<div class="btprog"><div class="bar"><span style="width:${pct}%"></span></div>
+    <div class="meta">Health check · ${esc(pr.phase || "Starting")} · ${pct}% · ${Math.floor(st.elapsed / 60)}m ${st.elapsed % 60}s</div></div>`;
+}
+function equitySvg(curve, unit = "R") {
+  if (!curve.length) return "";
+  const W = 420, H = 130, pad = 6, ys = [0, ...curve.map(p => p[1])];
+  const lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+  const x = i => pad + (W - 2 * pad) * (i / Math.max(1, curve.length));
+  const y = v => pad + (H - 2 * pad) * (1 - (v - lo) / span);
+  const pts = [[x(0), y(0)], ...curve.map((p, i) => [x(i + 1), y(p[1])])].map(p => p.map(v => v.toFixed(1)).join(",")).join(" ");
+  const col = curve[curve.length - 1][1] >= 0 ? "var(--up)" : "var(--down)";
+  return `<svg class="equity" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Equity curve in R">
+    <line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line2)" stroke-dasharray="4 4"/>
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+    <div class="eqaxis meta"><span>Start (${unit === "$" ? "$0" : "0R"})</span><span>${curve.length} trades · cumulative result ${unit === "$" ? "in dollars" : "in R"}</span></div>`;
+}
+// Day by day: trades grouped by the day they closed (your local date), with the overall gains vs losses.
+function dailyCards(d, usd, ucls) {
+  if (!d.trades.length) return "";
+  const hasUsd = d.trades.every(t => t.usd != null);
+  const val = t => hasUsd ? t.usd : t.r;
+  const show = v => hasUsd ? usd(v) : rtxt(v);
+  const days = new Map();
+  for (const t of d.trades) {
+    const k = new Date(t.exit_t * 1000).toLocaleDateString("en-CA");            // YYYY-MM-DD, local time
+    if (!days.has(k)) days.set(k, []);
+    days.get(k).push(t);
+  }
+  const rows = [...days.entries()].map(([k, ts]) => ({
+    k, ts, pnl: ts.reduce((a, t) => a + val(t), 0), r: ts.reduce((a, t) => a + t.r, 0),
+    won: ts.filter(t => t.r > 0).length, lost: ts.filter(t => t.r < 0).length, bal: ts[ts.length - 1].balance }));
+  const gains = d.trades.filter(t => val(t) > 0).reduce((a, t) => a + val(t), 0);
+  const losses = d.trades.filter(t => val(t) < 0).reduce((a, t) => a + val(t), 0);
+  const upDays = rows.filter(r => r.pnl > 0), downDays = rows.filter(r => r.pnl < 0);
+  const best = rows.reduce((a, r) => r.pnl > a.pnl ? r : a, rows[0]), worst = rows.reduce((a, r) => r.pnl < a.pnl ? r : a, rows[0]);
+  const maxAbs = Math.max(...rows.map(r => Math.abs(r.pnl)), 1);
+  const dname = k => new Date(k + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const tline = t => `<div class="dtrade tclick" data-ti="${d.trades.indexOf(t)}" title="Click to replay"><span class="bias ${t.side}">${t.side}</span>
+      <span>${new Date(t.entry_t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} → ${new Date(t.exit_t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      <span class="meta">${fmt(t.entry)} → ${fmt(t.exit)} · ${esc(t.why)}</span><b class="${ucls(val(t))}">${show(val(t))}</b></div>`;
+  return `<div class="card"><div class="sect">Overall · gains vs losses${hasUsd ? ` at ${d.params.lot} lot` : ""}</div>
+      <div class="stats">
+        <div class="stat"><div class="v up">${show(gains)}</div><div class="k">total gains (${d.trades.filter(t => t.r > 0).length} winning trades)</div></div>
+        <div class="stat"><div class="v dn">${show(losses)}</div><div class="k">total losses (${d.trades.filter(t => t.r < 0).length} losing trades)</div></div>
+        <div class="stat"><div class="v ${ucls(gains + losses)}">${show(gains + losses)}</div><div class="k">net result</div></div>
+        <div class="stat"><div class="v">${upDays.length} / ${downDays.length}</div><div class="k">winning / losing days (of ${rows.length})</div></div></div>
+      <div class="meta" style="margin-top:8px">Best day ${dname(best.k)} ${show(best.pnl)} · worst day ${dname(worst.k)} ${show(worst.pnl)} ·
+        average per trading day ${show((gains + losses) / rows.length)}. For every $1 lost, the wins made $${losses ? (gains / -losses).toFixed(2) : "—"}.</div></div>
+    <div class="card"><div class="sect">Day by day · tap a day to see its trades</div>
+      <div class="dhead"><span>Day</span><span>Trades</span><span>Result</span><span></span><span>Balance</span></div>
+      ${rows.map(r => `<details class="day"><summary>
+          <span>${dname(r.k)}</span><span class="meta">${r.ts.length} · ${r.won}W ${r.lost}L</span>
+          <b class="${ucls(r.pnl)}">${show(r.pnl)}</b>
+          <span class="dbar"><i class="${r.pnl >= 0 ? "pos" : "neg"}" style="width:${Math.round(100 * Math.abs(r.pnl) / maxAbs)}%"></i></span>
+          <span class="meta">${r.bal != null ? "$" + Math.round(r.bal).toLocaleString() : rtxt(r.r)}</span></summary>
+        ${r.ts.map(tline).join("")}</details>`).join("")}
+      <div class="meta" style="margin-top:8px">Days are when trades closed, in your local time. Days without a closed trade are not listed.</div></div>`;
+}
+
+function renderBtResult(d, id) {
+  bt.shown = id; bt.result = d;
+  if (d.error) { $("btResult").innerHTML = `<div class="card"><div class="warn">${esc(d.error)}</div></div>`; return; }
+  const s = d.summary, p = d.params, u = d.usd;
+  const usd = v => v == null ? "—" : `${v < 0 ? "−" : v > 0 ? "+" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`;
+  const ucls = v => v > 0 ? "up" : v < 0 ? "dn" : "";
+  const stat = (v, k, c = "") => `<div class="stat"><div class="v ${c}">${v}</div><div class="k">${k}</div></div>`;
+  const grp = Object.entries(d.groups).filter(([, g]) => g.n).map(([k, g]) => `<tr><td>${esc(k)}</td><td class="d">${g.n}</td>
+    <td class="d">${g.win_rate}%</td><td class="p ${rcls(g.total_r)}" style="text-align:right">${rtxt(g.total_r)}</td></tr>`).join("");
+  const ag = Object.entries(d.agents).sort((a, b) => (b[1].hit_rate ?? 0) - (a[1].hit_rate ?? 0)).map(([k, a]) => `<tr>
+    <td><b>${esc(LABELS[k] || (k === "chief" ? "Chief direction" : k))}</b></td>
+    <td style="width:38%"><div class="confbar ${a.hit_rate >= 50 ? "BUY" : "SELL"}"><span style="width:${a.hit_rate ?? 0}%"></span></div></td>
+    <td class="p">${a.hit_rate != null ? a.hit_rate + "%" : "—"}</td><td class="d">${a.hits}/${a.hits + a.misses}</td></tr>`).join("");
+  const trades = d.trades.map((t, i) => [t, i]).reverse().slice(0, 60).map(([t, i]) => `<tr class="tclick" data-ti="${i}" title="Click to see the trade and replay it"><td>${new Date(t.entry_t * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+    <td><span class="bias ${t.side}">${t.side}</span></td><td class="meta">${t.kind === "now" ? "NOW" : "WAIT then"}</td>
+    <td class="p">${fmt(t.entry)}</td><td class="meta">${esc(t.why)}</td><td class="p ${rcls(t.r)}" style="text-align:right">${rtxt(t.r)}</td>
+    <td class="p ${ucls(t.usd)}" style="text-align:right">${usd(t.usd)}</td></tr>`).join("");
+  $("btResult").innerHTML = `
+    <div class="card"><div class="sect">Result · ${dshort(p.start)} – ${dshort(p.end - 86400)} · ${p.step} steps · $${(+p.spread).toFixed(2)} per side
+        ${p.target_rr ? ` · target ${p.target_rr}R` : " · plan's target"}${p.partial === false ? "" : " · half off at 1R"}${p.adaptive ? " · performance weights" : " · fixed weights"}${p.day_max_loss || p.day_max_profit ? ` · day limits −$${p.day_max_loss || "off"} / +$${p.day_max_profit || "off"}` : ""}${
+        p.live_rules === false ? " · without live rules" : p.live_rules ? " · live rules" : ""}${p.stop_slip ? ` · +$${p.stop_slip} stop slippage` : ""}${
+        p.f_session ? " · London/NY hours only" : ""}${p.f_trend ? " · Daily+4H agree only" : ""}${p.f_hunt ? " · after stop hunt only" : ""}</div>
+      ${(() => { const c = d.counts, k = (n) => c["blocked_" + n] || 0;
+        const parts = [["day_profit_target", "daily profit target reached"], ["day_loss_limit", "daily loss limit reached"],
+                       ["day_loss_room", "stop too wide for the day's loss limit"], ["daily_cap", "2 trades already that day"],
+                       ["news", "news window"], ["friday", "Friday afternoon"], ["two_losses", "2 losses already that day"],
+                       ["cooldown", "cool-down after a loss"], ["chase", "chasing a big move"], ["f_session", "outside London / NY hours"],
+                       ["f_trend", "Daily and 4H not both agreeing"], ["f_hunt", "no stop hunt first"]].filter(([n]) => k(n)).map(([n, t]) => `${k(n)} × ${t}`);
+        return parts.length ? `<div class="meta" style="margin-bottom:8px">Trades skipped by the rules: ${parts.join(" · ")}.</div>` : ""; })()}
+      ${u ? `<div class="usdhead"><div><div class="k">Profit / loss at ${p.lot} lot</div><div class="big ${ucls(u.total_usd)}">${usd(u.total_usd)}</div>
+          <div class="meta">${u.return_pct > 0 ? "+" : ""}${u.return_pct}% of $${(+u.account).toLocaleString()} · ending balance $${Math.round(u.end_balance).toLocaleString()}</div></div>
+        <div class="stats">${stat(usd(u.avg_usd), "average trade", ucls(u.avg_usd))}${stat(usd(u.best_usd), "best", "up")}
+          ${stat(usd(u.worst_usd), "worst", "dn")}${stat("$" + Math.round(u.max_dd_usd).toLocaleString(), "worst drop", u.max_dd_usd ? "dn" : "")}</div></div>
+        <div class="meta" style="margin:6px 0 10px">Average risk per trade $${Math.round(u.avg_risk_usd || 0).toLocaleString()} at ${p.lot} lot (stop distance × ${Math.round(p.lot * 100)} oz).</div>` : ""}
+      <div class="stats six">
+        ${stat(s.n, "trades")}${stat(s.win_rate != null ? s.win_rate + "%" : "—", "win rate")}
+        ${stat(rtxt(s.avg_r), "average", rcls(s.avg_r))}${stat(rtxt(s.total_r), "total", rcls(s.total_r))}
+        ${stat(s.max_dd.toFixed(1) + "R", "worst drop", s.max_dd ? "dn" : "")}${stat(s.streak, "losses in a row")}</div>
+      ${equitySvg(d.equity)}
+      <ul class="btlines">${d.lines.map(x => `<li>${esc(x.trim())}</li>`).join("")}</ul>
+      <div class="meta">R = result in "risk units": 1R is what you lose when the stop is hit. Past results do not guarantee future results.</div></div>
+    ${dailyCards(d, usd, ucls)}
+    ${(() => { const h = (d.counts.weights_history || []).filter(w => Object.keys(w.mult).length); if (!h.length) return "";
+        const last = h[h.length - 1];
+        return `<div class="card"><div class="sect">Performance weights in the last week of the test (${h.length} weeks adjusted)</div><div class="chips">${
+          Object.entries(last.mult).sort((a, b) => b[1] - a[1]).map(([k, m]) => `<span class="chip ${m > 1 ? "BUY" : "SELL"}">${esc(LABELS[k] || k)} ×${m.toFixed(2)}</span>`).join("")}</div></div>`; })()}
+    ${grp ? `<div class="card"><div class="sect">Split</div><table class="lvtable">${grp}</table></div>` : ""}
+    <div class="card"><div class="sect">Agents: 4-hour direction right?</div><table class="lvtable">${ag}</table>
+      <div class="meta" style="margin-top:6px">About 50% is a coin flip.</div></div>
+    ${trades ? `<div class="card"><div class="sect">Trades · newest first · click one to replay it</div><table class="lvtable">${trades}</table></div>` : ""}`;
+  for (const tr of document.querySelectorAll(".btruns tr")) tr.classList.toggle("sel", tr.dataset.run === id);
+}
+async function btOpen(id) {
+  $("btResult").innerHTML = `<div class="card meta">Loading…</div>`;
+  try { renderBtResult(await (await fetch(`/api/backtest/result/${id}`)).json(), id); }
+  catch (e) { $("btResult").innerHTML = `<div class="card warn">Could not load that run (${esc(e.message)}).</div>`; }
+}
+function btProgress(st) {
+  const pr = st.progress || {}, pct = pr.total ? Math.min(100, Math.round(100 * pr.done / pr.total)) : 0;
+  $("btProg").innerHTML = `<div class="btprog"><div class="bar"><span style="width:${pct}%"></span></div>
+    <div class="meta">${esc(pr.phase || "Starting")} · ${pct}% · ${st.elapsed}s</div></div>`;
+}
+async function btPoll() {
+  clearTimeout(bt.timer);
+  let st;
+  try { st = await (await fetch("/api/backtest/status", { cache: "no-store" })).json(); } catch { bt.timer = setTimeout(btPoll, 3000); return; }
+  $("btDot").classList.toggle("on", !!st.running);
+  const hc = String(st.id || "").startsWith("hc_"), wasRunning = bt.running;
+  bt.running = !!st.running; bt.runningId = st.id; bt.lastStatus = st;
+  if (!$("btProg")) { if (st.running) bt.timer = setTimeout(btPoll, 2000); return; }
+  if (st.running) {
+    $("btRun").disabled = true;
+    if (hc) { if (!wasRunning) hcRender(); hcProgress(st); } else btProgress(st);
+    bt.timer = setTimeout(btPoll, 1500);
+    return;
+  }
+  $("btRun").disabled = false;
+  if (wasRunning) hcRender();
+  if (st.id && st.id !== bt.lastDone) {
+    bt.lastDone = st.id;
+    const box = hc ? $("hcProg") : $("btProg");
+    if (box) box.innerHTML = st.error ? `<div class="warn" style="margin-top:8px">${esc(st.error)}</div>` : "";
+    if (!st.error) { if (String(st.id).startsWith("rv_")) rvLoad(); else if (hc) hcLoad(); else { await btLoadInfo(); renderBacktestTab(); btOpen(st.id); } }
+  }
+}
+$("tab-backtest").addEventListener("click", async e => {
+  const pre = e.target.closest("#btPresets button"); if (pre) return btPreset(+pre.dataset.days);
+  const row = e.target.closest("tr[data-run]"); if (row) return btOpen(row.dataset.run);
+  const hcb = e.target.closest("[data-hc]");
+  if (hcb) {
+    const r = await (await fetch("/api/health/run", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                      body: JSON.stringify({ period: hcb.dataset.hc }) })).json();
+    if (!r.ok) { $("hcProg").innerHTML = `<div class="warn" style="margin-top:8px">${esc(r.error)}</div>`; return; }
+    bt.lastDone = null; bt.running = true; bt.runningId = r.id; hcRender(); btPoll(); return;
+  }
+  if (e.target.id !== "btRun") return;
+  const rr = $("btRR").value.trim();
+  lsSet("btAcct", $("btAcct").value); lsSet("btLot", $("btLot").value); lsSet("btRR", rr); lsSet("btHalf", $("btHalf").checked ? "1" : "0");
+  const body = { start: $("btFrom").value, end: $("btTo").value, step: $("btStep").value, spread: +$("btSpread").value,
+                 account: +$("btAcct").value, lot: +$("btLot").value, target_rr: rr ? +rr : null, partial: $("btHalf").checked,
+                 adaptive: $("btAdapt").checked, day_max_loss: +$("btDayLoss").value || 0, day_max_profit: +$("btDayProfit").value || 0,
+                 live_rules: $("btLive").checked, f_session: $("btFSess").checked, f_trend: $("btFTrend").checked, f_hunt: $("btFHunt").checked };
+  if ($("btHarsh").checked) { body.spread *= 2; body.stop_slip = 0.5; }
+  for (const [k, id] of [["btLive", "btLive"], ["btHarsh", "btHarsh"], ["btFSess", "btFSess"], ["btFTrend", "btFTrend"], ["btFHunt", "btFHunt"]])
+    lsSet(k, $(id).checked ? "1" : "0");
+  lsSet("btDayLoss", $("btDayLoss").value); lsSet("btDayProfit", $("btDayProfit").value);
+  lsSet("btAdapt", $("btAdapt").checked ? "1" : "0");
+  const r = await (await fetch("/api/backtest/run", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                      body: JSON.stringify(body) })).json();
+  if (!r.ok) { $("btProg").innerHTML = `<div class="warn" style="margin-top:8px">${esc(r.error)}</div>`; return; }
+  bt.lastDone = null; $("btResult").innerHTML = "";
+  btPoll();
+});
+$("tab-backtest").addEventListener("change", e => {
+  if (["btFrom", "btTo", "btStep"].includes(e.target.id)) {
+    for (const b of document.querySelectorAll("#btPresets button")) b.classList.remove("on");
+    if (e.target.id === "btStep") { const lim = btLimits(); $("btFrom").min = $("btTo").min = lim.min; if ($("btFrom").value < lim.min) $("btFrom").value = lim.min; }
+    btEstimate();
+  }
+});
+(async () => { await btLoadInfo(); renderBacktestTab(); hcLoad(); const runs = bt.info?.runs || []; if (runs.length) btOpen(runs[0].id); btPoll(); })();
+
+// ---------- News tab: US events that move gold (ForexFactory this week + official CPI / jobs / Fed dates) ----------
+const nw = { data: null };
+async function loadNews() {
+  try { nw.data = await (await fetch("/api/news", { cache: "no-store" })).json(); } catch { return; }
+  renderNews();
+}
+function cdText(sec) {
+  const a = Math.abs(sec), d = Math.floor(a / 86400), h = Math.floor(a % 86400 / 3600), m = Math.floor(a % 3600 / 60);
+  const t = d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+  return sec >= 0 ? `in ${t}` : `${t} ago`;
+}
+function renderNews() {
+  const d = nw.data; if (!d) return;
+  const now = Date.now() / 1000;
+  const soon = d.events.filter(e => e.impact === "High" && e.t > now && e.t - now < 86400).length;
+  $("nwCount").textContent = soon || "";
+  const live = d.events.find(e => e.blocks && e.win_from <= now && now <= e.win_to);
+  const next = d.events.find(e => e.blocks && e.t > now);
+  let html = `<div class="card">${live
+    ? `<div class="nwstatus block">⛔ No new trades now: ${esc(live.name)} (window until ${new Date(live.win_to * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})</div>`
+    : `<div class="nwstatus ok">✓ No news window now: trading allowed${next ? ` · next: ${esc(next.name)} ${cdText(next.t - now)}` : ""}</div>`}
+    <div class="meta" style="margin-top:8px">Gold moves most on US data. <b style="color:var(--down)">High</b> impact = no new trades from 30 min before to 30 min after
+      (60 after a Fed decision). <b style="color:var(--warn)">Medium</b> = be careful, wider spreads possible. Times in your local time.</div></div>
+    <div class="card"><div class="sect">This week and coming up</div>`;
+  let day = "";
+  for (const e of d.events) {
+    const dt = new Date(e.t * 1000), dk = dt.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    if (dk !== day) { html += `<div class="nwday">${esc(dk)}</div>`; day = dk; }
+    const st = e.blocks && e.win_from <= now && now <= e.win_to ? "live" : e.t < now ? "past" : "";
+    const fc = [e.forecast && `forecast ${e.forecast}`, e.previous && `previous ${e.previous}`].filter(Boolean).join(" · ");
+    html += `<div class="nwrow ${st}"><span class="tm">${dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      <span class="imp ${e.impact}">${e.impact.toUpperCase()}</span>
+      <span class="nm"><b>${esc(e.name)}</b>${e.blocks ? `<span class="nt">no-trade window</span>` : ""}
+        <div class="fc">${esc(fc || e.source)}</div></span>
+      <span class="cd">${cdText(e.t - now)}</span></div>`;
+  }
+  if (!d.events.length) html += `<div class="meta">No high or medium impact US events found.</div>`;
+  html += `<div class="meta" style="margin-top:8px">Sources: ForexFactory weekly calendar (this week), BLS and Federal Reserve official schedules (later dates).</div></div>`;
+  $("tab-news").innerHTML = html;
+}
+loadNews();
+setInterval(loadNews, 10 * 60000);
+setInterval(renderNews, 30000);
+
+// ---------- Trade replay: click a backtest trade to see its levels and replay it candle by candle ----------
+const rp = { chart: null, series: null, timer: null, i: 0, start: 0, data: [], markers: [], speed: 400 };
+function rpStop() { clearInterval(rp.timer); rp.timer = null; if ($("rpPlay")) $("rpPlay").textContent = "▶ Play"; }
+function rpDestroy() { rpStop(); if (rp.chart) { rp.chart.remove(); rp.chart = null; } }
+function rpShow(i) {
+  rp.i = Math.max(1, Math.min(rp.data.length, i));
+  rp.series.setData(rp.data.slice(0, rp.i));
+  const last = rp.data[rp.i - 1].time;
+  rp.series.setMarkers(rp.markers.filter(m => m.time <= last));
+  $("rpSlider").value = rp.i;
+  $("rpTime").textContent = new Date((last - tzShift) * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  $("rpPrice").textContent = fmt(rp.data[rp.i - 1].close);
+  if (rp.i >= rp.data.length) rpStop();
+}
+function rpPlay() {
+  if (rp.timer) return rpStop();
+  if (rp.i >= rp.data.length) rpShow(rp.start);
+  $("rpPlay").textContent = "⏸ Pause";
+  rp.timer = setInterval(() => { if ($("modal").hidden) return rpDestroy(); rpShow(rp.i + 1); }, rp.speed);
+}
+async function openTrade(t) {
+  rpDestroy();
+  t = { ...t, exit_t: t.exit_t || Math.floor(Date.now() / 1000) };
+  const s = t.side === "BUY" ? 1 : -1, risk = Math.abs(t.entry - t.stop), be = t.entry + s * risk;
+  const when = ts => new Date(ts * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const usdTxt = t.usd == null ? "" : ` · ${t.usd < 0 ? "−" : "+"}$${Math.abs(Math.round(t.usd)).toLocaleString()}`;
+  const lot = (bt.result && bt.result.params.lot) || 0.1, d$ = x => `$${Math.round(Math.abs(x) * 100 * lot).toLocaleString()}`;
+  $("modalBody").innerHTML = `
+    <h2><span class="bias ${t.side}">${t.side} ${t.kind === "now" ? "NOW" : ""}</span> Trade replay
+      <span class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}" style="font-weight:700">${t.r > 0 ? "+" : ""}${t.r.toFixed(2)}R${usdTxt}</span></h2>
+    <div class="meta">${esc(t.why)}</div>
+    <div class="tlv">
+      <div><span>Entry</span><b class="ent">${fmt(t.entry)}</b><i>${when(t.entry_t)}</i></div>
+      <div><span>Stop loss</span><b class="dn">${fmt(t.stop)}</b><i>risk ${fmt(risk)} = ${d$(risk)}</i></div>
+      <div><span>Half off · 1R</span><b class="up">${fmt(be)}</b><i>then stop to entry</i></div>
+      <div><span>Target</span><b class="up">${fmt(t.t1)}</b><i>${fmt(Math.abs(t.t1 - t.entry))} = ${d$(t.t1 - t.entry)}</i></div>
+      <div><span>Exit</span><b class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}">${fmt(t.exit)}</b><i>${when(t.exit_t)}</i></div>
+      <div><span>Held</span><b>${Math.max(1, Math.round((t.exit_t - t.entry_t) / 3600 * 10) / 10)} h</b><i>decided ${when(t.decided_t || t.entry_t)}</i></div>
+    </div>
+    <div id="rpChart" class="rpchart"><div class="meta" style="padding:12px">Loading candles…</div></div>
+    <div class="rpctl">
+      <button id="rpBack" title="One candle back">⏮</button><button id="rpPlay" class="primary">▶ Play</button><button id="rpFwd" title="One candle forward">⏭</button>
+      <input type="range" id="rpSlider" min="1" max="1" value="1" aria-label="Replay position">
+      <select id="rpSpeed" aria-label="Replay speed"><option value="800">Slow</option><option value="400" selected>Normal</option><option value="150">Fast</option></select>
+    </div>
+    <div class="rpinfo"><span id="rpTime"></span> · price <b id="rpPrice"></b></div>
+    <div class="meta" style="margin-top:6px">Gold futures candles (the ones the backtest used). Blue = entry, red = stop, dotted green = half off at 1R,
+      green = target. Press Play to replay from the entry candle; drag the slider to jump.</div>`;
+  $("modal").hidden = false;
+  let res;
+  try {
+    const a = Math.min(t.decided_t || t.entry_t, t.entry_t) - 6 * 3600, b = t.exit_t + 2 * 3600;
+    res = await (await fetch(`/api/backtest/candles?start=${a}&end=${b}`)).json();
+  } catch (e) { res = { error: e.message }; }
+  if (res.error || !res.candles.length) { $("rpChart").innerHTML = `<div class="warn" style="padding:12px">${esc(res.error || "No candles for this trade.")}</div>`; return; }
+  $("rpChart").innerHTML = "";
+  rp.chart = LightweightCharts.createChart($("rpChart"), {
+    autoSize: true, ...chartColors(), timeScale: { ...chartColors().timeScale, timeVisible: true, secondsVisible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal } });
+  rp.series = rp.chart.addCandlestickSeries({ upColor: "#089981", downColor: "#f23645", borderVisible: false,
+                                              wickUpColor: "#089981", wickDownColor: "#f23645" });
+  rp.data = res.candles.map(c => ({ time: c.t + tzShift, open: c.o, high: c.h, low: c.l, close: c.c }));
+  const line = (price, color, title, style = 0) => rp.series.createPriceLine({ price, color, lineWidth: 2, lineStyle: style, axisLabelVisible: true, title });
+  line(t.entry, "#4c8dff", "ENTRY"); line(t.stop, "#f23645", "STOP"); line(be, "#089981", "HALF @1R", 2); line(t.t1, "#089981", "TARGET");
+  const bar = ts => Math.floor(ts / res.sec) * res.sec + tzShift;
+  rp.markers = [
+    { time: bar(t.entry_t), position: s > 0 ? "belowBar" : "aboveBar", color: "#4c8dff", shape: s > 0 ? "arrowUp" : "arrowDown", text: `IN ${fmt(t.entry)}` },
+    ...(t.open ? [] : [{ time: bar(t.exit_t - 1), position: s > 0 ? "aboveBar" : "belowBar", color: t.r > 0 ? "#089981" : "#f23645", shape: "circle", text: `OUT ${fmt(t.exit)}` }]),
+  ].sort((x, y) => x.time - y.time);
+  rp.start = Math.max(1, rp.data.findIndex(c => c.time >= bar(t.entry_t)) + 1);
+  $("rpSlider").max = rp.data.length;
+  rp.series.setData(rp.data);
+  rp.chart.timeScale().setVisibleLogicalRange({ from: -1, to: rp.data.length + 1 });
+  rpShow(rp.data.length);                                // show the whole trade first; Play replays from the entry
+  $("rpPlay").onclick = rpPlay;
+  $("rpBack").onclick = () => { rpStop(); rpShow(rp.i - 1); };
+  $("rpFwd").onclick = () => { rpStop(); rpShow(rp.i + 1); };
+  $("rpSlider").oninput = e => { rpStop(); rpShow(+e.target.value); };
+  $("rpSpeed").onchange = e => { rp.speed = +e.target.value; if (rp.timer) { rpStop(); rpPlay(); } };
+}
+$("tab-backtest").addEventListener("click", e => {
+  const el = e.target.closest("[data-ti]");
+  if (el && bt.result) openTrade(bt.result.trades[+el.dataset.ti]);
+});
+$("modalClose").addEventListener("click", rpDestroy);
+$("modal").addEventListener("click", e => { if (e.target.id === "modal") rpDestroy(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") rpDestroy(); });
+
+// ---------- Demo account tab: AuEdge's own demo positions (no broker) ----------
+const dm = { data: null };
+async function loadDemo() {
+  try { dm.data = await (await fetch("/api/demo", { cache: "no-store" })).json(); } catch { return; }
+  if (dm.mode === "live") renderDemo(); else $("dmCount").textContent = dm.data.open.length ? "1" : "";
+}
+function demoUsd(v) { return v == null ? "—" : `${v < 0 ? "−" : v > 0 ? "+" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`; }
+function demoCls(v) { return v > 0 ? "up" : v < 0 ? "dn" : ""; }
+function demoToTrade(t) {          // demo rows are in spot terms; the replay chart uses futures candles (+ saved gap)
+  const g = t.gap || 0;
+  return { side: t.side, kind: "now", decided_t: t.ts, entry_t: t.ts, exit_t: t.closed_ts, entry: t.entry + g, stop: t.stop + g,
+           t1: t.t1 + g, exit: t.exit_price != null ? t.exit_price + g : null, r: t.result_r ?? 0,
+           usd: t.status === "open" ? t.unrealised : t.usd, why: t.why || t.status, open: t.status === "open" };
+}
+function renderDemoLive() {
+  const d = dm.data; if (!d) return `<div class="card meta">Loading the demo account…</div>`;
+  $("dmCount").textContent = d.open.length ? "1" : "";
+  const st = (v, k, c = "") => `<div class="stat"><div class="v ${c}">${v}</div><div class="k">${k}</div></div>`;
+  const pos = d.open.map((t, i) => {
+    const s = t.side === "BUY" ? 1 : -1;
+    return `<div class="card demopos tclick" data-dopen="${i}" title="Click to see it on a chart">
+      <div class="sect">Open demo position · ${t.lot} lot</div>
+      <div class="dtop"><span class="bias ${t.side}">${t.side}</span><b style="font-size:16px">${fmt(t.entry)}</b>
+        <span class="spacer"></span><b class="${demoCls(t.unrealised)}" style="font-size:20px">${demoUsd(t.unrealised)}</b></div>
+      <div class="tlv">
+        <div><span>Price now</span><b>${fmt(d.price)}</b><i>live</i></div>
+        <div><span>Stop</span><b class="dn">${fmt(t.stop_now)}</b><i>${t.half ? "moved to entry (risk free)" : "original stop"}</i></div>
+        <div><span>Half off · 1R</span><b class="up">${fmt(t.be)}</b><i>${t.half ? "done: half closed" : "not reached yet"}</i></div>
+        <div><span>Target</span><b class="up">${fmt(t.t1)}</b><i>rest closes here</i></div>
+        <div><span>Opened</span><b>${new Date(t.ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</b><i>${new Date(t.ts * 1000).toLocaleDateString()}</i></div>
+        <div><span>Expires</span><b>${new Date((t.ts + 86400) * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</b><i>closes after 24 h</i></div>
+      </div></div>`; }).join("");
+  const rows = d.closed.map((t, i) => `<tr class="tclick" data-dclosed="${i}" title="Click to replay">
+      <td>${new Date(t.ts * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+      <td><span class="bias ${t.side}">${t.side}</span></td><td class="p">${fmt(t.entry)} → ${fmt(t.exit_price)}</td>
+      <td class="meta">${esc(t.why || t.status)}</td><td class="p ${demoCls(t.usd)}" style="text-align:right">${demoUsd(t.usd)}</td></tr>`).join("");
+  return `
+    <div class="card"><div class="sect">Demo account · automatic · no real money</div>
+      <div class="usdhead"><div><div class="k">Balance (equity incl. open trade)</div>
+          <div class="big ${demoCls(d.equity - d.start)}">$${Math.round(d.equity).toLocaleString()}</div>
+          <div class="meta">${demoUsd(d.equity - d.start)} since start ($${d.start.toLocaleString()}) · ${d.lot} lot per trade</div></div>
+        <div class="stats">${st(demoUsd(d.today), "today", demoCls(d.today))}${st(demoUsd(d.week), "this week", demoCls(d.week))}
+          ${st(d.trades, "closed trades")}${st(d.win_rate != null ? d.win_rate + "%" : "—", "won")}</div></div>
+      <div class="meta" style="margin-top:8px">AuEdge opens a demo position by itself on every BUY NOW / SELL NOW that passes the Discipline rules
+        (2 trades a day, news, Friday, −$350 / +$150 per day), then manages it like the plan: stop, half off at 1R with the stop moved to the entry,
+        target, 24-hour expiry. $0.30 cost per side. It never touches a real broker. Positions are checked every 15 minutes on real candle highs and lows.</div></div>
+    ${pos || `<div class="card meta">No open demo position. One opens automatically on the next BUY NOW / SELL NOW.</div>`}
+    ${d.curve.length ? `<div class="card"><div class="sect">Demo equity · profit / loss since start</div>${equitySvg(d.curve, "$")}</div>` : ""}
+    <div class="card"><div class="sect">Closed demo trades · newest first · click to replay</div>
+      ${rows ? `<table class="lvtable">${rows}</table>` : `<div class="meta">None yet. The first one appears after AuEdge's first BUY NOW / SELL NOW while the market is open.
+        Meanwhile, see how it would have traded: switch to <b>Last month (simulated)</b> above.</div>`}</div>`;
+}
+
+// Last month, simulated: today's rules replayed over the last ~30 days of real candles, shown like the demo account.
+dm.mode = lsGet("demoMode", "live") === "month" ? "month" : "live";
+async function loadDemoMonth() {
+  try { dm.monthResp = await (await fetch("/api/demo/month", { cache: "no-store" })).json(); } catch { return; }
+  if (dm.monthResp.status === "running") setTimeout(loadDemoMonth, 2000);
+  if (dm.mode === "month") renderDemo();
+}
+function renderDemoMonth() {
+  const r = dm.monthResp, st = (v, k, c = "") => `<div class="stat"><div class="v ${c}">${v}</div><div class="k">${k}</div></div>`;
+  const runBtn = label => `<button class="primary" data-act="runmonth">${label}</button>`;
+  if (!r) return `<div class="card meta">Loading…</div>`;
+  if (r.status === "none") return `<div class="card"><div class="sect">Last month · simulated</div>
+      <p class="verdict">See how the demo account would have traded over the last month with today's exact rules:
+      $25,000, 0.1 lot, stop / half at 1R / target, 2 trades a day, news filter, −$350 / +$150 per day.</p>${runBtn("Run last month (about 1 minute)")}</div>`;
+  if (r.status === "running") { const pr = (r.progress || {}), pct = pr.total ? Math.round(100 * pr.done / pr.total) : 0;
+    return `<div class="card"><div class="sect">Last month · simulating…</div><div class="btprog"><div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="meta">${esc(pr.phase || "Starting")} · ${pct}% · ${r.elapsed || 0}s</div></div></div>`; }
+  if (r.status === "error") return `<div class="card"><div class="warn">${esc(r.error)}</div>${runBtn("Try again")}</div>`;
+  const d = dm.month = r.result, u = d.usd, p = d.params, start = u.account;
+  const curve = d.trades.map(t => [t.exit_t, Math.round((t.balance - start) * 100) / 100]);
+  const skipped = Object.entries(d.counts).filter(([k]) => k.startsWith("blocked_")).reduce((a, [, v]) => a + v, 0);
+  const rows = d.trades.map((t, i) => [t, i]).reverse().map(([t, i]) => `<tr class="tclick" data-ti="${i}" title="Click to replay">
+      <td>${new Date(t.entry_t * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+      <td><span class="bias ${t.side}">${t.side}</span></td><td class="p">${fmt(t.entry)} → ${fmt(t.exit)}</td>
+      <td class="meta">${esc(t.why)}</td><td class="p ${demoCls(t.usd)}" style="text-align:right">${demoUsd(t.usd)}</td>
+      <td class="d">$${Math.round(t.balance).toLocaleString()}</td></tr>`).join("");
+  return `<div class="card"><div class="sect">Last month · simulated with today's rules · ${dshort(p.start)} – ${dshort(p.end - 86400)}</div>
+      <div class="usdhead"><div><div class="k">Demo balance at the end</div>
+          <div class="big ${demoCls(u.total_usd)}">$${Math.round(u.end_balance).toLocaleString()}</div>
+          <div class="meta">${demoUsd(u.total_usd)} (${u.return_pct > 0 ? "+" : ""}${u.return_pct}%) from $${start.toLocaleString()} · ${p.lot} lot per trade</div></div>
+        <div class="stats">${st(d.summary.n, "trades")}${st(d.summary.win_rate != null ? d.summary.win_rate + "%" : "—", "won")}
+          ${st("$" + Math.round(u.max_dd_usd).toLocaleString(), "worst drop", u.max_dd_usd ? "dn" : "")}${st(skipped, "skipped by rules")}</div></div>
+      ${equitySvg(curve, "$")}
+      <div class="frm"><button class="primary" data-act="chart30">Show these trades on the chart</button>
+        <button data-act="runmonth">Re-run with the latest data</button></div>
+      <div class="meta">Simulated on real gold futures candles, analysed every 15 minutes exactly as live: no look-ahead, $0.30 cost per side.
+        Real demo trades from now on appear under <b>Live demo</b>. Past results do not guarantee future results.</div></div>
+    ${dailyCards(d, demoUsd, demoCls)}
+    <div class="card"><div class="sect">All trades · newest first · click to replay</div><table class="lvtable">${rows}</table></div>`;
+}
+function renderDemo() {
+  $("tab-demo").innerHTML = `<div class="seg demomode">
+      <button data-dmode="live" class="${dm.mode === "live" ? "on" : ""}">Live demo</button>
+      <button data-dmode="month" class="${dm.mode === "month" ? "on" : ""}">Last month (simulated)</button></div>`
+    + (dm.mode === "live" ? renderDemoLive() : renderDemoMonth());
+}
+$("tab-demo").addEventListener("click", async e => {
+  const mode = e.target.closest("[data-dmode]"), act = e.target.closest("[data-act]"), ti = e.target.closest("[data-ti]");
+  if (mode) { dm.mode = mode.dataset.dmode; lsSet("demoMode", dm.mode); renderDemo(); if (dm.mode === "month") loadDemoMonth(); return; }
+  if (act && act.dataset.act === "runmonth") {
+    const r = await (await fetch("/api/demo/month/run", { method: "POST" })).json();
+    if (!r.ok) { alert(r.error); return; }
+    dm.monthResp = { status: "running" }; renderDemo(); setTimeout(loadDemoMonth, 1500); return;
+  }
+  if (act && act.dataset.act === "chart30") { await setCalls(30); scrollTo({ top: 0, behavior: "smooth" }); return; }
+  if (ti && dm.month) { openTrade(dm.month.trades[+ti.dataset.ti]); return; }
+  const o = e.target.closest("[data-dopen]"), c = e.target.closest("[data-dclosed]");
+  if (o) openTrade(demoToTrade(dm.data.open[+o.dataset.dopen]));
+  else if (c) openTrade(demoToTrade(dm.data.closed[+c.dataset.dclosed]));
+});
+loadDemo();
+loadDemoMonth();
+setInterval(() => { if (dm.mode === "live") loadDemo(); }, 30000);
+
+// ---------- "Calls 7d" on the chart: arrows for the last week's trade calls; click one to replay it ----------
+const cl = { on: false, days: 0, list: [] };
+function callBar(ts) { const sec = TF[state.tf].sec; return Math.floor(ts / sec) * sec + tzShift; }
+function applyCallMarkers() {
+  if (!cl.on || state.src === "tv" || !state.bars.length) { candles.setMarkers([]); return; }
+  const have = new Set(state.bars.map(b => b.time + tzShift)), m = [];
+  for (const t of cl.list) {
+    const s = t.side === "BUY" ? 1 : -1, tag = t.source === "demo" ? "DEMO " : "";
+    const a = callBar(t.entry_t);
+    if (have.has(a)) m.push({ time: a, position: s > 0 ? "belowBar" : "aboveBar", color: s > 0 ? "#089981" : "#f23645",
+                              shape: s > 0 ? "arrowUp" : "arrowDown", text: `${tag}${t.side} ${fmt(t.entry)}` });
+    if (t.exit_t) { const b = callBar(t.exit_t - 1);
+      if (have.has(b)) m.push({ time: b, position: s > 0 ? "aboveBar" : "belowBar", color: (t.usd ?? t.r) >= 0 ? "#26a69a" : "#ef5350",
+                                shape: "circle", text: t.usd != null ? demoUsd(t.usd) : `${t.r > 0 ? "+" : ""}${t.r}R` }); }
+  }
+  candles.setMarkers(m.sort((x, y) => x.time - y.time));
+  $("srcLabel").innerHTML = `<b>Calls, last ${cl.days} days:</b> ${cl.list.length} trades (${cl.list.filter(t => t.source === "demo").length} demo, `
+    + `${cl.list.filter(t => t.source === "backtest").length} backtest) · arrow = entry, circle = exit · click one to replay`;
+}
+async function setCalls(days) {
+  cl.days = days; cl.on = days > 0;
+  $("callsBtn").classList.toggle("on", cl.on);
+  $("callsLbl").textContent = cl.on ? `Calls ${days}d` : "Calls";
+  if (!cl.on) { candles.setMarkers([]); load(); return; }
+  try { cl.list = (await (await fetch(`/api/calls?days=${days}`, { cache: "no-store" })).json()).calls; } catch { cl.list = []; }
+  if (state.src === "tv") {                      // TradingView's chart can't show our arrows: use the Futures candles
+    state.src = "fut";
+    for (const b of $("srcGroup").children) b.classList.toggle("on", b.dataset.src === "fut");
+    if (!["15m", "1h"].includes(state.tf)) state.tf = "15m";
+    buildTfButtons();
+  }
+  await load();
+}
+$("callsBtn").addEventListener("click", () => setCalls(cl.days === 0 ? 7 : cl.days === 7 ? 30 : 0));      // Off -> 7 -> 30 -> Off
+chart.subscribeClick(p => {
+  if (!cl.on || !p.point) return;
+  // Candles can be under a pixel wide, so pick the nearest arrow/circle within ~14 px of the click.
+  let best = null, bestD = 14;
+  for (const t of cl.list) {
+    for (const [ts, price] of [[t.entry_t, t.entry], [t.exit_t ? t.exit_t - 1 : null, t.exit]]) {
+      if (!ts || price == null) continue;
+      const x = chart.timeScale().timeToCoordinate(callBar(ts)), y = candles.priceToCoordinate(price);
+      if (x == null || y == null) continue;
+      const d = Math.hypot((x - p.point.x) * 1.0, (y - p.point.y) * 0.35);       // horizontal distance matters most
+      if (d < bestD) { best = t; bestD = d; }
+    }
+  }
+  if (best) openTrade(best);
+});
+
+// ---------- Calendar: pick a date to see the Chief's calls, agents, levels, demo trades, and replay the whole day ----------
+const cal = { days: {}, month: null, sel: null, detail: null };
+const tzOff = new Date().getTimezoneOffset();
+const ymdLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+async function loadCalendar() {
+  try { cal.days = (await (await fetch(`/api/calendar?tz=${tzOff}`, { cache: "no-store" })).json()).days; } catch { return; }
+  if (!cal.month) {                                       // open on the month of the newest day with data
+    const keys = Object.keys(cal.days).sort();
+    const d = keys.length ? new Date(keys[keys.length - 1] + "T12:00:00") : new Date();
+    cal.month = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  renderCalendar();
+}
+function renderCalendar() {
+  const m = cal.month, first = new Date(m.getFullYear(), m.getMonth(), 1);
+  const lead = (first.getDay() + 6) % 7, nDays = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const today = ymdLocal(new Date());
+  let cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="cday empty"></div>`;
+  for (let dd = 1; dd <= nDays; dd++) {
+    const k = ymdLocal(new Date(m.getFullYear(), m.getMonth(), dd)), d = cal.days[k];
+    const cls = !d ? "" : d.pnl > 0 ? "pos" : d.pnl < 0 ? "neg" : "flat";
+    cells += `<button class="cday ${cls} ${k === cal.sel ? "sel" : ""} ${k === today ? "today" : ""}" data-day="${k}" ${d ? "" : "disabled"}>
+      <span class="dn">${dd}</span>${d ? `<span class="pl">${d.trades ? demoUsd(d.pnl) : "·"}</span>
+      <span class="tg">${d.trades ? d.trades + "T" : ""}${d.live ? " live" : d.sim ? " sim" : ""}</span>` : ""}</button>`;
+  }
+  const monthPnl = Object.entries(cal.days).filter(([k]) => k.startsWith(ymdLocal(first).slice(0, 7))).reduce((a, [, d]) => a + d.pnl, 0);
+  $("tab-calendar").innerHTML = `<div class="card">
+      <div class="calhead"><button data-cal="-1" aria-label="Previous month">‹</button>
+        <b>${m.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</b>
+        <span class="${demoCls(monthPnl)}">${demoUsd(monthPnl)}</span><button data-cal="1" aria-label="Next month">›</button></div>
+      <div class="calgrid">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(w => `<div class="cwk">${w}</div>`).join("")}${cells}</div>
+      <div class="meta" style="margin-top:6px">Green / red = demo profit or loss that day (0.1 lot). <b>live</b> = real-time demo, <b>sim</b> = the simulated
+        last month (Demo tab). Tap a day for its calls, agents, levels and trades.</div></div>
+    <div id="calDetail">${cal.sel ? `<div class="card meta">Loading…</div>` : ""}</div>`;
+  if (cal.sel) loadDay(cal.sel);
+}
+async function loadDay(k) {
+  cal.sel = k;
+  try { cal.detail = await (await fetch(`/api/calendar/day?date=${k}&tz=${tzOff}`, { cache: "no-store" })).json(); } catch { return; }
+  renderDay();
+}
+function renderDay() {
+  const d = cal.detail; if (!d || !$("calDetail")) return;
+  const tm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const nice = new Date(d.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const act = a => /NOW/.test(a.a) ? cls(a.sd || "") : /WATCH/.test(a.a) ? "NA" : "WAIT";
+  const tl = d.timeline.map(a => `<div class="tlrow"><span class="meta">${tm(a.t)}</span><span class="bias ${act(a)}">${esc(a.a)}</span>
+      <span class="meta">${fmt(a.p)}${a.cf ? ` · conf ${a.cf}%` : ""}</span></div>`).join("");
+  const ag = Object.entries(d.agents).sort((x, y) => y[1].calls - x[1].calls).map(([k, a]) => {
+    const dec = a.hit + a.miss, hr = dec ? Math.round(100 * a.hit / dec) : null;
+    return `<tr><td><b>${esc(LABELS[k] || k)}</b></td><td class="d">${a.calls}</td>
+      <td style="width:30%"><div class="confbar ${hr >= 50 ? "BUY" : "SELL"}"><span style="width:${hr ?? 0}%"></span></div></td>
+      <td class="p">${hr != null ? hr + "%" : "—"}</td><td class="d">${a.hit}✓ ${a.miss}✗${a.pending ? ` · ${a.pending} waiting` : ""}</td></tr>`; }).join("");
+  const lvl = st => !st ? `<div class="meta">No analysis saved for this day.</div>` : `
+      <div class="kvs1"><div class="kv1"><span>Time · price</span><b>${tm(st.t)} · ${fmt(st.p)}</b></div>
+        <div class="kv1"><span>Trend</span><b>${esc(st.tr || "—")}</b></div>
+        <div class="kv1"><span>Plan</span><b>${esc(st.a)}</b></div>
+        ${st.lv && st.lv[2] != null ? `<div class="kv1"><span>Entry · stop · 1R · target</span><b>${fmt((st.lv[0] + st.lv[1]) / 2)} · ${fmt(st.lv[2])} · ${fmt(st.lv[3])} · ${fmt(st.lv[4])}</b></div>` : ""}
+        <div class="kv1"><span>Buy stops above</span><b>${st.up.map(fmt).join(" · ") || "—"}</b></div>
+        <div class="kv1"><span>Sell stops below</span><b>${st.dn.map(fmt).join(" · ") || "—"}</b></div></div>`;
+  const tmIn = ts => ts < d.window[0] ? new Date(ts * 1000).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : tm(ts);
+  const trs = d.trades.map((t, i) => `<tr class="tclick" data-cti="${i}" title="Click to replay"><td>${tmIn(t.entry_t)}</td>
+      <td><span class="bias ${t.side}">${t.side}</span></td><td class="p">${fmt(t.entry)} → ${t.exit != null ? fmt(t.exit) : "open"}</td>
+      <td class="meta">${esc(t.why || "")}</td><td class="p ${demoCls(t.usd)}" style="text-align:right">${demoUsd(t.usd)}</td></tr>`).join("");
+  $("calDetail").innerHTML = `
+    <div class="card"><div class="dtop"><b style="font-size:15px">${nice}</b><span class="bias ${d.source === "live" ? "BUY" : "NA"}">${d.source === "live" ? "LIVE" : "SIMULATED"}</span>
+        <span class="spacer"></span><b class="${demoCls(d.pnl)}" style="font-size:18px">${demoUsd(d.pnl)}</b></div>
+      <div class="meta" style="margin:4px 0 8px">${d.steps} analyses · ${d.nows} "NOW" call(s) · ${d.trades.length} demo trade(s)</div>
+      <button class="primary" data-act="replayday">▶ Replay the whole day</button></div>
+    <div class="card"><div class="sect">Chief's calls through the day (when the answer changed)</div>${tl || `<div class="meta">No analysis saved for this day.</div>`}</div>
+    <div class="card"><div class="sect">Demo trades · click to replay</div>${trs ? `<table class="lvtable">${trs}</table>` : `<div class="meta">No demo trades this day.</div>`}</div>
+    <div class="card"><div class="sect">Agents that day · right 4 hours later?</div>${ag ? `<table class="lvtable">${ag}</table>
+        <div class="meta" style="margin-top:6px">Calls repeat every 15 minutes, so neighbouring calls overlap. About 50% is a coin flip.</div>` : `<div class="meta">No agent calls saved for this day.</div>`}</div>
+    <div class="card"><div class="sect">Levels at the start of the day</div>${lvl(d.levels.start)}</div>
+    <div class="card"><div class="sect">Levels at the end of the day</div>${lvl(d.levels.end)}</div>`;
+  for (const b of document.querySelectorAll(".cday")) b.classList.toggle("sel", b.dataset.day === d.date);
+}
+async function openDayReplay() {
+  const d = cal.detail; if (!d) return;
+  rpDestroy();
+  const nice = new Date(d.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  $("modalBody").innerHTML = `<h2>Day replay · ${nice} <span class="${demoCls(d.pnl)}" style="font-weight:700">${demoUsd(d.pnl)}</span></h2>
+    <div class="meta">${d.trades.length} demo trade(s) · ▲▼ entries, ● exits, small dots = moments the Chief said BUY / SELL NOW</div>
+    <div id="rpChart" class="rpchart"><div class="meta" style="padding:12px">Loading candles…</div></div>
+    <div class="rpctl"><button id="rpBack">⏮</button><button id="rpPlay" class="primary">▶ Play</button><button id="rpFwd">⏭</button>
+      <input type="range" id="rpSlider" min="1" max="1" value="1" aria-label="Replay position">
+      <select id="rpSpeed" aria-label="Replay speed"><option value="600">Slow</option><option value="250" selected>Normal</option><option value="80">Fast</option></select></div>
+    <div class="rpinfo"><span id="rpTime"></span> · price <b id="rpPrice"></b></div>`;
+  $("modal").hidden = false;
+  let res;
+  try { res = await (await fetch(`/api/backtest/candles?start=${Math.min(d.window[0], ...d.trades.map(t => t.entry_t - 3600))}&end=${d.window[1]}`)).json(); } catch (e) { res = { error: e.message }; }
+  if (res.error || !res.candles.length) { $("rpChart").innerHTML = `<div class="warn" style="padding:12px">${esc(res.error || "No candles for this day.")}</div>`; return; }
+  $("rpChart").innerHTML = "";
+  rp.chart = LightweightCharts.createChart($("rpChart"), {
+    autoSize: true, ...chartColors(), timeScale: { ...chartColors().timeScale, timeVisible: true, secondsVisible: false } });
+  rp.series = rp.chart.addCandlestickSeries({ upColor: "#089981", downColor: "#f23645", borderVisible: false, wickUpColor: "#089981", wickDownColor: "#f23645" });
+  rp.data = res.candles.map(c => ({ time: c.t + tzShift, open: c.o, high: c.h, low: c.l, close: c.c }));
+  const bar = ts => Math.floor(ts / res.sec) * res.sec + tzShift, have = new Set(rp.data.map(c => c.time)), m = [];
+  for (const a of d.timeline.filter(a => a.k === "now")) if (have.has(bar(a.t - 1)))
+    m.push({ time: bar(a.t - 1), position: a.sd === "BUY" ? "belowBar" : "aboveBar", color: "#f0b429", shape: "circle", size: 0.6, text: "NOW" });
+  for (const t of d.trades) {
+    const s = t.side === "BUY" ? 1 : -1;
+    if (have.has(bar(t.entry_t))) m.push({ time: bar(t.entry_t), position: s > 0 ? "belowBar" : "aboveBar", color: "#4c8dff", shape: s > 0 ? "arrowUp" : "arrowDown", text: `IN ${fmt(t.entry)}` });
+    if (t.exit_t && !t.open && have.has(bar(t.exit_t - 1))) m.push({ time: bar(t.exit_t - 1), position: s > 0 ? "aboveBar" : "belowBar", color: (t.usd ?? 0) >= 0 ? "#089981" : "#f23645", shape: "circle", text: demoUsd(t.usd) });
+  }
+  rp.markers = m.sort((x, y) => x.time - y.time);
+  rp.start = 1;
+  $("rpSlider").max = rp.data.length;
+  rp.series.setData(rp.data);
+  rp.chart.timeScale().setVisibleLogicalRange({ from: -1, to: rp.data.length + 1 });
+  rpShow(rp.data.length);
+  $("rpPlay").onclick = rpPlay;
+  $("rpBack").onclick = () => { rpStop(); rpShow(rp.i - 1); };
+  $("rpFwd").onclick = () => { rpStop(); rpShow(rp.i + 1); };
+  $("rpSlider").oninput = e => { rpStop(); rpShow(+e.target.value); };
+  $("rpSpeed").onchange = e => { rp.speed = +e.target.value; if (rp.timer) { rpStop(); rpPlay(); } };
+  rp.speed = 250;
+}
+$("tab-calendar").addEventListener("click", e => {
+  const nav = e.target.closest("[data-cal]"), day = e.target.closest("[data-day]"), tr = e.target.closest("[data-cti]"), act = e.target.closest("[data-act]");
+  if (nav) { cal.month = new Date(cal.month.getFullYear(), cal.month.getMonth() + +nav.dataset.cal, 1); renderCalendar(); return; }
+  if (day) { cal.sel = day.dataset.day; $("calDetail").innerHTML = `<div class="card meta">Loading…</div>`; loadDay(cal.sel);
+             for (const b of document.querySelectorAll(".cday")) b.classList.toggle("sel", b.dataset.day === cal.sel); return; }
+  if (tr && cal.detail) { openTrade(cal.detail.trades[+tr.dataset.cti]); return; }
+  if (act && act.dataset.act === "replayday") openDayReplay();
+});
+loadCalendar();
+setInterval(loadCalendar, 5 * 60000);
+
+// Dark / light theme, like TradingView. Remembered on this device.
+function setTheme(t) {
+  if (t === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme;
+  lsSet("theme", t);
+  document.querySelector('meta[name="theme-color"]').content = t === "light" ? "#ffffff" : "#131722";
+  chart.applyOptions(chartColors());
+  if (rp.chart) rp.chart.applyOptions(chartColors());
+  if (tvLoaded && window.TradingView) { $("tv").innerHTML = ""; tvLoaded = false; if (state.src === "tv") ensureTv(); }   // widget only takes a theme when created
+}
+$("themeBtn").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+document.querySelector('meta[name="theme-color"]').content = document.documentElement.dataset.theme === "light" ? "#ffffff" : "#131722";
+chart.applyOptions(chartColors());
+
+// Alerts: a sound, a pop-up on the page and (if allowed) a Windows notification when a new BUY NOW / SELL NOW appears.
+const al = { on: lsGet("alerts", "0") === "1", ctx: null };
+function alertUi() {
+  $("alertBtn").classList.toggle("on", al.on);
+  $("alertBtn").title = al.on ? "Alerts ON: sound and pop-up for BUY NOW / SELL NOW. Click to turn off." : "Alerts OFF. Click for a sound and pop-up when AuEdge says BUY NOW or SELL NOW.";
+}
+function beep() {
+  try {
+    al.ctx = al.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = al.ctx.currentTime;
+    for (const [f, dt] of [[880, 0], [1175, 0.18], [1568, 0.36]]) {
+      const o = al.ctx.createOscillator(), g = al.ctx.createGain();
+      o.frequency.value = f; o.type = "sine"; o.connect(g); g.connect(al.ctx.destination);
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.16); o.start(t0 + dt); o.stop(t0 + dt + 0.17);
+    }
+  } catch {}
+}
+function nowAlert(d, test = false) {
+  const plan = d && d.chief && d.chief.plan;
+  if (!test && (!al.on || !plan || plan.kind !== "now")) return;
+  const key = test ? "test" : `${plan.side}|${Math.round((plan.entry_lo + plan.entry_hi) / 2)}`;
+  const last = (() => { try { return JSON.parse(lsGet("lastAlert", "{}")); } catch { return {}; } })();
+  if (!test && last.key === key && Date.now() - last.at < 2 * 3600e3) return;     // same plan: alert once
+  if (!test) lsSet("lastAlert", JSON.stringify({ key, at: Date.now() }));
+  const side = test ? "BUY" : plan.side;
+  const text = test ? "Alerts are on. You'll hear this when AuEdge says BUY NOW or SELL NOW."
+    : `${plan.side} NOW near ${fmt((plan.entry_lo + plan.entry_hi) / 2)} · stop ${fmt(plan.stop)} · half at ${fmt(plan.be_at)} · target ${fmt(plan.t1)}`;
+  beep();
+  document.querySelector(".nowtoast")?.remove();
+  const el = document.createElement("div");
+  el.className = "nowtoast"; el.setAttribute("role", "alert");
+  el.innerHTML = `<span class="bias ${side}">${test ? "TEST" : side + " NOW"}</span><div><b>${test ? "Alerts on" : "AuEdge trade call"}</b><div class="meta">${esc(text)}</div></div><button class="x" aria-label="Close">✕</button>`;
+  el.onclick = e => { el.remove(); if (!e.target.closest(".x")) document.querySelector('[data-tab="plan"]')?.click(); };
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 60000);
+  try { if (!test && "Notification" in window && Notification.permission === "granted" && document.hidden)
+          new Notification(`AuEdge: ${plan.side} NOW`, { body: text, icon: "/icon-192.png", tag: "auedge-now" }); } catch {}
+}
+$("alertBtn").addEventListener("click", async () => {
+  al.on = !al.on; lsSet("alerts", al.on ? "1" : "0"); alertUi();
+  if (al.on) {
+    try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch {}
+    nowAlert(null, true);
+    if (agentState.data) nowAlert(agentState.data);
+  }
+});
+alertUi();
+
+// ---------- Review board: each week every agent's vote is re-tested; votes change only on strong evidence ----------
+const rv = { data: null, timer: null };
+async function rvLoad() {
+  try { rv.data = await (await fetch("/api/review", { cache: "no-store" })).json(); } catch { return; }
+  try { rv.status = await (await fetch("/api/backtest/status", { cache: "no-store" })).json(); } catch { rv.status = null; }
+  rvRender();
+  clearTimeout(rv.timer);
+  const running = rv.status && rv.status.running && String(rv.status.id).startsWith("rv_");
+  rv.timer = setTimeout(rvLoad, running ? 3000 : 5 * 60000);
+  if (rv.wasRunning && !running && agentState.data) loadAgents(true);       // new votes: re-run the analysis
+  rv.wasRunning = running;
+}
+function rvRender() {
+  const el = $("reviewCard"), d = rv.data; if (!el || !d) return;
+  const name = a => esc(LABELS[a] || a), off = new Set(d.votes.off), st = rv.status || {};
+  const running = st.running && String(st.id).startsWith("rv_"), busy = st.running && !running;
+  const when = t => new Date(t * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const L = d.last, pending = L && !L.apply && !L.applied && (L.changes || []).length &&
+    JSON.stringify([...L.votes_before].sort()) === JSON.stringify([...off].sort()) && !d.log.some(e => e.review === L.id);
+  const chips = d.agents.map(a => `<button class="vchip ${off.has(a.name) ? "off" : "on"}" data-vote="${a.name}" data-on="${off.has(a.name) ? 1 : 0}"
+      title="${off.has(a.name) ? "Vote is OFF. Click to switch it back on." : "Vote is ON. Click to switch it off."}">${off.has(a.name) ? "○" : "●"} ${name(a.name)}</button>`).join("");
+  const pr = st.progress || {}, pct = pr.total ? Math.min(100, Math.round(100 * pr.done / pr.total)) : 0;
+  const cand = L && (L.candidates || []).map(c => `<li>${name(c.agent)} vote <b>${c.action.toUpperCase()}</b>: 6 months
+      <span class="${demoCls(c.gain_6m)}">${demoUsd(c.gain_6m)}</span> (halves ${demoUsd(c.halves_6m[0])} / ${demoUsd(c.halves_6m[1])}),
+      last month <span class="${demoCls(c.gain_month)}">${demoUsd(c.gain_month)}</span>${c.skipped ? ` · <span class="meta">skipped: ${esc(c.skipped)}</span>` : ""}</li>`).join("");
+  const logRows = d.log.slice(0, 6).map(e => `<li><span class="meta">${when(e.t)} · ${esc(e.by)}</span> ·
+      ${(e.changes || []).map(c => `${name(c.agent)} ${c.action === "off" ? "off" : "on"}`).join(", ") || "no change"}${e.note && e.by !== "you" ? ` <span class="meta">(${esc(e.note)})</span>` : ""}</li>`).join("");
+  el.innerHTML = `<div class="sect">Review board · keeps the team honest</div>
+    <div class="meta" style="margin-bottom:8px">Every week it re-tests each agent's vote on 6 months and on the last month. A vote is switched
+      <b>off</b> only if results are better without it in <b>both halves</b> of the 6 months and the last month is not worse (and back
+      <b>on</b> by the same rule). At most 2 changes a week, at least ${L ? L.rules.min_voters : 5} agents keep voting, and the safety rules
+      (discipline, daily limits, news) are never touched. Switched-off agents still show their view and levels.</div>
+    <div class="vchips">${chips}</div>
+    <div class="meta" style="margin:4px 0 10px">● votes · ○ switched off · click to change by hand (logged, can be undone)</div>
+    ${running ? `<div class="btprog"><div class="bar"><span style="width:${pct}%"></span></div><div class="meta">Review running · ${esc(pr.phase || "starting")} · ${pct}%</div></div>`
+      : L ? `<div class="rvlast"><b>Last review</b> <span class="meta">${when(L.made_at)}${L.apply ? "" : " · suggest only"}</span>
+          <div style="margin-top:4px">${esc(L.summary)}</div>${cand ? `<ul class="btlines">${cand}</ul>` : ""}
+          ${L.confirm && L.confirm.result ? `<div class="meta">${esc(L.confirm.result)}</div>` : ""}
+          ${pending ? `<div class="frm"><button class="primary" data-rv="apply" data-id="${L.id}">Apply these changes</button><span class="meta">Suggest-only review: nothing changed yet.</span></div>` : ""}</div>`
+      : `<div class="meta">No review yet. The first one runs automatically this weekend.</div>`}
+    ${logRows ? `<div class="sect" style="margin-top:10px">Changes</div><ul class="btlines">${logRows}</ul>` : ""}
+    <div class="frm">
+      <button data-rv="run" ${st.running ? "disabled" : ""}>Run review now (about 10 min, low priority)</button>
+      ${d.log.length ? `<button data-rv="undo" title="Put back the votes from before the last change">Undo last change</button>` : ""}
+      <label title="Off = the board only suggests; you apply with one click"><input type="checkbox" id="rvAuto" ${d.votes.auto_apply ? "checked" : ""}> Apply changes automatically</label></div>
+    <div class="meta">Next automatic review: ${when(d.next_due)} or the first weekend after. ${busy ? "A backtest is running now." : ""}</div>`;
+}
+$("tab-agents").addEventListener("click", async e => {
+  const v = e.target.closest("[data-vote]"), b = e.target.closest("[data-rv]");
+  const post = async (url, body) => (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })).json();
+  if (v) {
+    const turnOn = v.dataset.on === "1", label = LABELS[v.dataset.vote] || v.dataset.vote;
+    if (!confirm(`${turnOn ? "Switch ON" : "Switch OFF"} the ${label} vote? It is logged and can be undone.`)) return;
+    const r = await post("/api/review/vote", { agent: v.dataset.vote, on: turnOn });
+    if (!r.ok) alert(r.error); else { await rvLoad(); loadAgents(true); }
+    return;
+  }
+  if (!b) return;
+  let r;
+  if (b.dataset.rv === "run") r = await post("/api/review/run", { dry_run: false });
+  if (b.dataset.rv === "undo") { if (!confirm("Undo the last vote change?")) return; r = await post("/api/review/undo"); }
+  if (b.dataset.rv === "apply") r = await post("/api/review/apply", { run_id: b.dataset.id });
+  if (r && r.ok === false) alert(r.error);
+  await rvLoad();
+  if (b.dataset.rv !== "run") loadAgents(true);
+});
+$("tab-agents").addEventListener("change", async e => {
+  if (e.target.id !== "rvAuto") return;
+  await fetch("/api/review/auto", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: e.target.checked }) });
+  rvLoad();
+});
+rvLoad();
+</script>
+<script src="/journal.js"></script>
+</body>
+</html>

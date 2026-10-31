@@ -76,3 +76,42 @@ def test_events_before_since_dropped(monkeypatch):
     fomc = [e for e in ev if e.kind == "FOMC"]
     assert fomc and all(e.components == [] and e.surprise_z is None for e in fomc)
     assert not any(math.isnan(e.t) for e in ev)
+
+
+def test_same_day_observations_latest_is_live(monkeypatch):
+    # after a shutdown, Oct and Nov payrolls come out together on 2025-12-16
+    rows = []
+    v = 150000.0
+    for i in range(36):
+        y, m = 2023 + i // 12, i % 12 + 1
+        v += 100 + 37 * (i % 5)
+        ny, nm = (y, m + 1) if m < 12 else (y + 1, 1)
+        rel = f"{ny}-{nm:02d}-05"
+        if (y, m) in ((2025, 10), (2025, 11)):
+            rel = "2025-12-16"
+        rows.append({"date": f"{y}-{m:02d}-01", "realtime_start": rel,
+                     "realtime_end": "9999-12-31", "value": str(v)})
+    monkeypatch.setattr(cal, "fetch_vintages", lambda s, offline=False: rows)
+    monkeypatch.setattr(cal, "RELEASES", {"NFP": {"name": "NFP", "time": (8, 30),
+                                                    "series": [("PAYEMS", "diff", 1, True)]}})
+    ev = [e for e in build_events(since="2025-01-01") if e.kind == "NFP"]
+    day = [e for e in ev if e.t == release_ts("2025-12-16", 8, 30)]
+    assert len(day) == 1
+    comps = day[0].components
+    assert len(comps) == 2
+    live = [c for c in comps if not c.stale]
+    stale = [c for c in comps if c.stale]
+    assert len(live) == 1 and len(stale) == 1
+    assert live[0].headline and not stale[0].headline
+    assert live[0].obs_date == "2025-11-01" and stale[0].obs_date == "2025-10-01"
+    assert day[0].surprise_z == live[0].surprise_z
+    val = lambda i: float(rows[i]["value"])  # rows[33] = Oct 2025, rows[34] = Nov 2025
+    assert live[0].actual == val(34) - val(33) and stale[0].actual == val(33) - val(32)
+    # store headline columns describe the newest print
+    from core.newsintel.store import _event_row
+    row = _event_row(day[0])
+    assert row[3] == live[0].actual and row[7] == live[0].surprise_z
+
+
+def test_gdp_is_real():
+    assert cal.RELEASES["GDP"]["series"] == [("GDPC1", "saar_qoq", 1, True)]

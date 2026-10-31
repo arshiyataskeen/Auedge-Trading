@@ -55,7 +55,7 @@ Chief confidence ≥ 70 %: 45 trades, +5.29R. Agents' 4-hour direction calls: 45
 | PPI | ALFRED `PPIFIS` | 08:30 |
 | PCE, Core PCE | ALFRED `PCEPI`, `PCEPILFE` | 08:30 |
 | NFP, Unemployment rate | ALFRED `PAYEMS` (change), `UNRATE` | 08:30 |
-| GDP (advance) | ALFRED `GDP` (first vintage of each quarter, annualised q/q) | 08:30 |
+| GDP (advance) | ALFRED `GDPC1` (real GDP; first vintage of each quarter, annualised q/q) | 08:30 |
 | Retail sales | ALFRED `RSAFS` | 08:30 |
 | Initial jobless claims | ALFRED `ICSA` | 08:30 Thu |
 | FOMC decision | Hard-coded Fed calendar 2020–2024 (incl. 2020-03-03 and 2020-03-15 emergency moves) + existing lists | 14:00 (emergency: actual time) |
@@ -70,7 +70,10 @@ registers (`FRED_API_KEY` in the existing env handling, `core/env.py`). Download
 
 For each series and event *i*: `surprise_z = (actual_i − expected_i) / σ_i`, where `expected_i` is an AR(1)
 forecast fitted on **first-release values published before event i** (expanding window, min 24 points;
-before that: last value), and `σ_i` is the standard deviation of that model's past one-step errors. Sign is
+before that: last value), and `σ_i` = 1.4826 × MAD of that model's last 36 one-step errors (`z` null if
+σ < 1e-12). Releases for observation periods 2020-03-01 … 2021-06-30 (COVID shock) are left out of the fit and
+error history of later releases. A release whose prior period was never published (e.g. October 2025 after the
+shutdown) has no one-step change: `actual` and its surprise are null. Sign is
 oriented so that **positive = hawkish/strong-USD** (e.g. higher CPI, higher NFP, lower unemployment, lower claims).
 FOMC has no free surprise measure: modelled by event kind + pre-event conditions only, `surprise_z = null`.
 

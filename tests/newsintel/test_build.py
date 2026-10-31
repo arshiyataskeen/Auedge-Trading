@@ -66,3 +66,31 @@ def test_events_outside_data_range_skipped(monkeypatch, tmp_path):
     out, db = _run(monkeypatch, tmp_path, evs)
     assert out["events"] == 1 and out["times"] == 1
     assert [r[1] for r in _rows(db, "events")] == ["PPI"]
+
+
+def test_store_inserts_name_columns(tmp_path):
+    from dataclasses import fields
+
+    from core.newsintel import store
+    from core.newsintel.features import Features
+    from core.newsintel.reactions import Reaction
+
+    # a table whose column order differs from the dataclasses: positional inserts would scramble it
+    db = tmp_path / "s.db"
+    con = sqlite3.connect(db)
+    rcols = [f.name for f in fields(Reaction)][::-1] + ["price_source"]
+    fcols = [f.name for f in fields(Features)][::-1]
+    con.execute(f"CREATE TABLE reactions ({', '.join(rcols)})")
+    con.execute(f"CREATE TABLE features ({', '.join(fcols)})")
+    con.commit()
+    con.close()
+    r = Reaction(t=60, p0=1.0, r5=5.0, r15=None, r30=None, r60=None, r120=None, max_up=None, max_down=None,
+                 vol_exp=None, cont=None, settle_min=7, atr15=2.0, move60=None, move120=None,
+                 label60="up", label120=None, incomplete=0)
+    f = Features(t=60, atr15=2.0, atr1h=3.0, pre_range=None, trend_score=None, hours_since_prev=4.0, overlap=1)
+    with store.connect(db) as c:
+        store.replace_all(c, [], [r], [f], "src")
+        got = dict(c.execute("SELECT * FROM reactions").fetchone())
+        fg = dict(c.execute("SELECT * FROM features").fetchone())
+    assert got["t"] == 60 and got["settle_min"] == 7 and got["label60"] == "up" and got["price_source"] == "src"
+    assert fg["atr1h"] == 3.0 and fg["hours_since_prev"] == 4.0 and fg["overlap"] == 1

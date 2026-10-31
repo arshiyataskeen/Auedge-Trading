@@ -26,7 +26,7 @@ RELEASES: dict[str, dict] = {
     "NFP": {"name": "Non-Farm Payrolls", "time": (8, 30),
             "series": [("PAYEMS", "diff", 1, True), ("UNRATE", "level", -1, False)]},
     # advance estimate only: first_releases keeps the first publication of each quarter
-    "GDP": {"name": "GDP (advance)", "time": (8, 30), "series": [("GDP", "saar_qoq", 1, True)]},
+    "GDP": {"name": "GDP (advance)", "time": (8, 30), "series": [("GDPC1", "saar_qoq", 1, True)]},
     "RETAIL": {"name": "Retail Sales", "time": (8, 30), "series": [("RSAFS", "pct_mom", 1, True)]},
     "CLAIMS": {"name": "Jobless Claims", "time": (8, 30), "series": [("ICSA", "level", -1, True)]},
 }
@@ -49,14 +49,20 @@ FOMC_HIST: list[tuple[str, int, int]] = [
 
 @dataclass
 class Component:
-    """One series of an event: values, expectation and signed surprise z."""
+    """One series of an event: values, expectation and signed surprise z.
+
+    stale: an older observation published on the same day as a newer one of the same series
+    (never the headline). obs_date: the observation period it describes.
+    """
     series: str
-    actual: float
+    actual: float | None
     previous: float | None
     expected: float | None
     sigma: float | None
     surprise_z: float | None
     headline: bool
+    stale: bool = False
+    obs_date: str | None = None
 
 
 @dataclass
@@ -93,10 +99,15 @@ def build_events(since: str = "2020-01-01", offline: bool = False) -> list[Event
         by_day: dict[str, list[Component]] = {}
         for sid, transform, sign, headline in spec["series"]:
             rels = first_releases(fetch_vintages(sid, offline=offline), transform)
+            newest: dict[str, str] = {}  # release day -> latest observation of this series on it
+            for r in rels:
+                newest[r.release_date] = max(newest.get(r.release_date, ""), r.obs_date)
             for r, s in zip(rels, expectations(rels, sign)):
                 if r.release_date >= since:
-                    by_day.setdefault(r.release_date, []).append(
-                        Component(sid, r.actual, r.previous, s.expected, s.sigma, s.z, headline))
+                    stale = r.obs_date != newest[r.release_date]
+                    by_day.setdefault(r.release_date, []).append(Component(
+                        sid, r.actual, r.previous, s.expected, s.sigma, s.z,
+                        headline and not stale, stale, r.obs_date))
         for day, comps in by_day.items():
             events.append(Event(kind, spec["name"], release_ts(day, h, m), comps))
     seen: set[int] = set()

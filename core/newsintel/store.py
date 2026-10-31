@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from dataclasses import asdict, astuple
+from dataclasses import asdict, astuple, fields
 from pathlib import Path
 
 from .calendar import Event
@@ -48,6 +48,15 @@ def _event_row(e: Event) -> tuple:
     return (e.kind, e.name, e.t, *h, json.dumps([asdict(c) for c in e.components]))
 
 
+def _names(cls) -> list[str]:
+    return [f.name for f in fields(cls)]
+
+
+def _insert(table: str, cols: list[str]) -> str:
+    """INSERT naming every column, so the table's column order does not matter."""
+    return f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})"
+
+
 def replace_all(con: sqlite3.Connection, events: list[Event], reactions: list[Reaction],
                 feats: list[Features], price_source: str) -> None:
     """Delete and rewrite all three tables in one transaction, so a rebuild is idempotent."""
@@ -57,8 +66,6 @@ def replace_all(con: sqlite3.Connection, events: list[Event], reactions: list[Re
         con.executemany(
             "INSERT INTO events (kind, name, t, actual, previous, expected, sigma, surprise_z, components) "
             "VALUES (?,?,?,?,?,?,?,?,?)", [_event_row(e) for e in events])
-        # Reaction fields start with t, then p0...; price_source sits right after t in the table
-        con.executemany(
-            "INSERT INTO reactions VALUES (" + ",".join("?" * 19) + ")",
-            [(r.t, price_source, *astuple(r)[1:]) for r in reactions])
-        con.executemany("INSERT INTO features VALUES (?,?,?,?,?,?,?)", [astuple(f) for f in feats])
+        con.executemany(_insert("reactions", ["price_source", *_names(Reaction)]),
+                        [(price_source, *astuple(r)) for r in reactions])
+        con.executemany(_insert("features", _names(Features)), [astuple(f) for f in feats])

@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --app: #0b0d12; --bg: #131722; --panel2: #1e222d; --hover: #2a2e39; --line: #2a2e39; --line2: #363a45;
+  --text: #d1d4dc; --muted: #787b86; --faint: #5d606b; --accent: #2962ff; --accent2: #1e53e5;
+  --up: #089981; --down: #f23645; --warn: #ff9800;
+  --up-bg: rgba(8,153,129,.15); --down-bg: rgba(242,54,69,.15); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.16);
+  --strong: #fff; --rowhover: #171b26; --rowhover2: #1b2030; --scrim: rgba(0,0,0,.6); --glass: rgba(19,23,34,.97);
+  --chart-text: #b2b5be; --chart-grid: rgba(42,46,57,.6);
+}
+:root[data-theme="light"] {
+  --app: #e0e3eb; --bg: #ffffff; --panel2: #f0f3fa; --hover: #e9ecf2; --line: #e0e3eb; --line2: #d1d4dc;
+  --text: #131722; --muted: #6a6d78; --faint: #9598a1;
+  --up-bg: rgba(8,153,129,.12); --down-bg: rgba(242,54,69,.10); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.10);
+  --strong: #131722; --rowhover: #f0f3fa; --rowhover2: #e9eefb; --scrim: rgba(19,23,34,.35); --glass: rgba(255,255,255,.97);
+  --chart-text: #131722; --chart-grid: rgba(224,227,235,.9);
+}
+
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0; background: var(--app); color: var(--text);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+}

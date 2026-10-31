@@ -16,3 +16,9 @@ __pycache__/
 *.lnk
 *.log
 *.tmp
+
+# React app (web/): build output and tooling
+static/app/
+web/node_modules/
+web/test-results/
+web/playwright-report/

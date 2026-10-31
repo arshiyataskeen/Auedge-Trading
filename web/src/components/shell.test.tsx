@@ -36,15 +36,39 @@ describe('Tabs', () => {
     }
   })
   it('uses roving tabindex and arrow keys', () => {
-    const items = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }]
+    const items = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'c', label: 'C' }]
     const onChange = vi.fn()
     render(<Tabs items={items} value="a" onChange={onChange} />)
     expect(screen.getByRole('tab', { name: 'A' })).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('tab', { name: 'B' })).toHaveAttribute('tabindex', '-1')
     fireEvent.keyDown(screen.getByRole('tab', { name: 'A' }), { key: 'ArrowRight' })
-    expect(onChange).toHaveBeenCalledWith('b')
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'A' }), { key: 'ArrowLeft' })
     expect(onChange).toHaveBeenLastCalledWith('b')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'A' }), { key: 'ArrowLeft' })
+    expect(onChange).toHaveBeenLastCalledWith('c')
+  })
+  it('Home and End jump to the first and last tab', () => {
+    const items = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'c', label: 'C' }]
+    const onChange = vi.fn()
+    render(<Tabs items={items} value="b" onChange={onChange} />)
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'B' }), { key: 'End' })
+    expect(onChange).toHaveBeenLastCalledWith('c')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'B' }), { key: 'Home' })
+    expect(onChange).toHaveBeenLastCalledWith('a')
+  })
+  it('namespaces ids per instance and only the active tab has aria-controls', () => {
+    const items = [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }]
+    render(<><Tabs items={items} value="a" onChange={() => {}}><i>1a</i><i>1b</i></Tabs><Tabs items={items} value="a" onChange={() => {}}><i>2a</i><i>2b</i></Tabs></>)
+    const ids = Array.from(document.querySelectorAll('[id]')).map((e) => e.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const tabs = screen.getAllByRole('tab')
+    const panels = screen.getAllByRole('tabpanel')
+    expect(panels).toHaveLength(2)
+    const active = tabs.filter((t) => t.getAttribute('aria-selected') === 'true')
+    active.forEach((t, i) => {
+      expect(t.getAttribute('aria-controls')).toBe(panels[i].id)
+      expect(panels[i].getAttribute('aria-labelledby')).toBe(t.id)
+    })
+    tabs.filter((t) => t.getAttribute('aria-selected') !== 'true').forEach((t) => expect(t).not.toHaveAttribute('aria-controls'))
   })
 })
 

@@ -1,4 +1,4 @@
-import { Children, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { Children, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
 type Item = { key: string; label: string }
 
@@ -6,6 +6,7 @@ type Item = { key: string; label: string }
 export default function Tabs({ items, value, onChange, children, label }: {
   items: Item[]; value: string; onChange: (key: string) => void; children?: ReactNode; label?: string
 }) {
+  const uid = useId()
   const refs = useRef<(HTMLButtonElement | null)[]>([])
   const idx = Math.max(0, items.findIndex((i) => i.key === value))
   const panels = Children.toArray(children)
@@ -29,8 +30,8 @@ export default function Tabs({ items, value, onChange, children, label }: {
         {items.map((it, i) => {
           const on = i === idx
           return (
-            <button key={it.key} ref={(el) => { refs.current[i] = el }} role="tab" id={`tab-${it.key}`} type="button"
-              aria-selected={on} aria-controls={`panel-${it.key}`} tabIndex={on ? 0 : -1} onClick={() => onChange(it.key)}
+            <button key={it.key} ref={(el) => { refs.current[i] = el }} role="tab" id={`${uid}-tab-${it.key}`} type="button"
+              aria-selected={on} aria-controls={on ? `${uid}-panel-${it.key}` : undefined} tabIndex={on ? 0 : -1} onClick={() => onChange(it.key)}
               className={`-mb-px border-b-2 px-3 py-2 text-[13px] ${on ? 'border-accent text-strong' : 'border-transparent text-muted hover:text-text'}`}>
               {it.label}
             </button>
@@ -38,7 +39,7 @@ export default function Tabs({ items, value, onChange, children, label }: {
         })}
       </div>
       {panels[idx] !== undefined && (
-        <div role="tabpanel" id={`panel-${items[idx].key}`} aria-labelledby={`tab-${items[idx].key}`}>{panels[idx]}</div>
+        <div role="tabpanel" id={`${uid}-panel-${items[idx].key}`} aria-labelledby={`${uid}-tab-${items[idx].key}`}>{panels[idx]}</div>
       )}
     </>
   )

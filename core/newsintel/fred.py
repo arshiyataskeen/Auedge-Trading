@@ -40,8 +40,18 @@ def _download(series: str, key: str) -> list[dict]:
         params = {"series_id": series, "api_key": key, "file_type": "json",
                   "realtime_start": START, "realtime_end": "9999-12-31",
                   "observation_start": START, "limit": PAGE, "offset": offset}
-        r = httpx.get(URL, params=params, timeout=60)
-        r.raise_for_status()
+        fail = None
+        try:
+            r = httpx.get(URL, params=params, timeout=60)
+            r.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            fail = f"HTTP {e.response.status_code}"
+        except httpx.RequestError as e:
+            fail = type(e).__name__
+        if fail:
+            # raised outside the except block: httpx messages carry the full URL (with the api key)
+            # and would otherwise stay reachable as the exception's context
+            raise RuntimeError(f"FRED request for {series} failed: {fail}")
         body = r.json()
         obs = body.get("observations", [])
         rows += obs
@@ -106,6 +116,8 @@ def first_releases(rows: list[dict], transform: str) -> list[Release]:
         rel = min(r["realtime_start"] for r in by_date[d])
         cur = at(d, rel)
         prior = at(dates[i - 1], rel) if i else None
+        # dropped when the prior observation has no value valid on the release date,
+        # so the first observation of a non-level series is never emitted
         act = _transform(transform, cur, prior) if cur is not None else None
         if act is not None:
             out.append(Release(d, rel, act, None))

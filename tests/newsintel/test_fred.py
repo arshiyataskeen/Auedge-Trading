@@ -134,3 +134,27 @@ def test_network_error_does_not_leak_api_key(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError) as ei:
         fred.fetch_vintages("PAYEMS")
     assert "SECRETKEY123" not in _chain_text(ei.value)
+
+
+def test_missing_period_gives_no_actual():
+    # Oct 2025 never published: Nov's change against Sep would be a two-month move
+    rows = [_row("2025-08-01", "2025-09-11", 100.0), _row("2025-09-01", "2025-10-24", 100.3),
+            _row("2025-11-01", "2025-12-18", 100.5), _row("2025-12-01", "2026-01-13", 100.7)]
+    out = {r.obs_date: r for r in fred.first_releases(rows, "pct_mom")}
+    assert out["2025-09-01"].actual == pytest.approx(0.3)
+    nov = out["2025-11-01"]
+    assert nov.release_date == "2025-12-18" and nov.actual is None
+    dec = out["2025-12-01"]
+    assert dec.actual == pytest.approx(100 * (100.7 / 100.5 - 1))
+    assert dec.previous is None                           # Nov's actual is unknown
+
+
+def test_missing_week_and_quarter():
+    wk = [_row("2025-01-04", "2025-01-09", 200), _row("2025-01-11", "2025-01-16", 210),
+          _row("2025-01-25", "2025-01-30", 215)]
+    out = fred.first_releases(wk, "diff")
+    assert [(r.obs_date, r.actual) for r in out] == [("2025-01-11", 10.0), ("2025-01-25", None)]
+    q = [_row("2024-01-01", "2024-04-25", 100), _row("2024-04-01", "2024-07-25", 101),
+         _row("2024-10-01", "2025-01-30", 102)]
+    out = fred.first_releases(q, "saar_qoq")
+    assert out[0].actual is not None and out[1].actual is None

@@ -10,6 +10,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
@@ -26,10 +27,14 @@ PAGE = 100000
 
 @dataclass
 class Release:
-    """One release: observation date, day first published, value and the prior release's value."""
+    """One release: observation date, day first published, value and the prior release's value.
+
+    actual is None when it cannot be a one-period change: the period before it was never
+    published (e.g. no October 2025 CPI after the shutdown), so a "m/m" would span two months.
+    """
     obs_date: str
     release_date: str
-    actual: float
+    actual: float | None
     previous: float | None
 
 
@@ -95,6 +100,25 @@ def _transform(kind: str, v: float, prev: float | None) -> float | None:
     raise ValueError(f"unknown transform {kind!r}")
 
 
+def _freq(dates: list[str]) -> str:
+    """'weekly', 'monthly' or 'quarterly' from the smallest spacing of the observation dates
+    (missing periods only ever widen a gap)."""
+    if len(dates) < 2:
+        return "monthly"
+    g = min((date.fromisoformat(b) - date.fromisoformat(a)).days for a, b in zip(dates, dates[1:]))
+    return "weekly" if g <= 10 else "monthly" if g <= 45 else "quarterly"
+
+
+def _period_before(d: str, freq: str) -> str:
+    """The observation date of the period immediately before d."""
+    x = date.fromisoformat(d)
+    if freq == "weekly":
+        return (x - timedelta(days=7)).isoformat()
+    months = 1 if freq == "monthly" else 3
+    y, m = divmod(x.year * 12 + x.month - 1 - months, 12)
+    return date(y, m + 1, x.day).isoformat()
+
+
 def first_releases(rows: list[dict], transform: str) -> list[Release]:
     """Each observation's value as first published, sorted by release date."""
     by_date: dict[str, list[dict]] = {}
@@ -103,6 +127,7 @@ def first_releases(rows: list[dict], transform: str) -> list[Release]:
             continue
         by_date.setdefault(r["date"], []).append(r)
     dates = sorted(by_date)
+    freq = _freq(dates)
 
     def at(date: str, v: str) -> float | None:
         # the value valid on day v (rs <= v <= re)
@@ -112,20 +137,30 @@ def first_releases(rows: list[dict], transform: str) -> list[Release]:
         return None
 
     out: list[Release] = []
+    adjacent: dict[str, bool] = {}  # obs date -> its prior observation is the period right before it
     for i, d in enumerate(dates):
         rel = min(r["realtime_start"] for r in by_date[d])
         cur = at(d, rel)
-        prior = at(dates[i - 1], rel) if i else None
-        # dropped when the prior observation has no value valid on the release date,
-        # so the first observation of a non-level series is never emitted
-        act = _transform(transform, cur, prior) if cur is not None else None
-        if act is not None:
-            out.append(Release(d, rel, act, None))
+        adjacent[d] = bool(i) and dates[i - 1] == _period_before(d, freq)
+        if cur is None:
+            continue
+        if transform == "level":
+            out.append(Release(d, rel, cur, None))
+        elif i and not adjacent[d]:
+            # a period is missing: a change against the older observation is not one step
+            out.append(Release(d, rel, None, None))
+        else:
+            prior = at(dates[i - 1], rel) if i else None
+            # dropped when the prior observation has no value valid on the release date,
+            # so the first observation of a non-level series is never emitted
+            act = _transform(transform, cur, prior)
+            if act is not None:
+                out.append(Release(d, rel, act, None))
     out.sort(key=lambda x: x.release_date)
-    # previous = the prior observation's first-release actual
-    last: dict[str, float] = {}
+    # previous = the prior period's first-release actual (None if that period is missing)
+    last: dict[str, float | None] = {}
     for r in sorted(out, key=lambda x: x.obs_date):
-        r.previous = last.get(_prev_obs(dates, r.obs_date))
+        r.previous = last.get(_prev_obs(dates, r.obs_date)) if adjacent[r.obs_date] else None
         last[r.obs_date] = r.actual
     return out
 

@@ -75,7 +75,7 @@ def _settle_min(m: Minutes, t: int) -> int | None:
     if base is None:
         return None
     limit = SETTLE_FACTOR * base
-    for k in range(1, 181):
+    for k in range(5, 181):  # from 5: the 5-minute window lies wholly at or after T
         end = t + k * MIN
         s = window(m, end - 5 * MIN, end)
         if s.stop - s.start < 5:

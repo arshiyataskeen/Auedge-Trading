@@ -85,3 +85,12 @@ def test_load_minutes_uses_cache(tmp_path):
     # cache is newer than... the deleted file: loader must not need the dump
     b = load_backup_minutes(p, cache=cache)
     assert np.array_equal(a.t, b.t) and np.array_equal(a.c, b.c)
+
+
+def test_naive_timestamp_rejected(tmp_path):
+    import pytest
+    rows = [["XAUUSD", "1min", "2024-01-02 00:00:00", "2050.1", "2051", "2049.5", "2050.7", "\\N", "3"]]
+    p = tmp_path / "d.backup"
+    _write_dump(p, rows, True)
+    with pytest.raises(ValueError, match="timezone"):
+        load_backup_minutes(p, cache=tmp_path / "c.npz")

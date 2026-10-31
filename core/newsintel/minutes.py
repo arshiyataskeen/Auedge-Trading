@@ -43,7 +43,10 @@ def load_backup_minutes(backup: Path, cache: Path = DATA / "news_intel" / "xau_1
         # columns: symbol, granularity, ts, bid_open, bid_high, bid_low, bid_close, ask_close, volume
         if row[1] != "1min":
             continue
-        t.append(int(datetime.fromisoformat(row[2]).timestamp()))
+        ts = datetime.fromisoformat(row[2])
+        if ts.tzinfo is None:  # a naive time would silently be read as local time
+            raise ValueError(f"candle timestamp without timezone: {row[2]!r}")
+        t.append(int(ts.timestamp()))
         o.append(float(row[3]))
         h.append(float(row[4]))
         l.append(float(row[5]))

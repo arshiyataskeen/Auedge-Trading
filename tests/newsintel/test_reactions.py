@@ -92,3 +92,8 @@ def test_reaction_when_market_closed():
 
 def test_incomplete_when_sparse():
     assert measure(_minutes(lambda k: 2000.0, hi=100), T, 1800).incomplete == 1
+
+
+def test_settle_window_never_reaches_before_t():
+    # calm from T on: the first window wholly at/after T ends at T + 5 min
+    assert measure(_minutes(lambda k: 2000.0), T, 1800).settle_min == 5

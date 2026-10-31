@@ -102,3 +102,11 @@ def test_labels_and_aux_columns(db):
     assert ds.X[1, f["hours_since_prev"]] == 1.5
     assert ds.X[0, f["pre_range_atr15"]] == 3.0
     assert ds.X[2, f["overlap"]] == 1
+
+
+def test_signed_move60_kept(db):
+    path, ts = db
+    ds = data.load(path)
+    assert ds.move60 is not None and len(ds.move60) == len(ds.t)
+    assert list(ds.move60) == [2.0] * 4
+    assert np.allclose(np.abs(ds.move60), ds.absmove60)

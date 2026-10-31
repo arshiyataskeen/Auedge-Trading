@@ -32,6 +32,7 @@ class Dataset:
     absmove60: np.ndarray
     atr15: np.ndarray
     feature_names: list[str]
+    move60: np.ndarray | None = None  # signed 60-minute move (price units); absmove60 is its absolute value
 
 
 def _num(v) -> float:
@@ -60,7 +61,7 @@ def load(db: Path = store.DB) -> Dataset:
     for e in ev_rows:
         by_t.setdefault(e["t"], []).append(e)
 
-    t, X, y, y120, kind, absmove, atr = [], [], [], [], [], [], []
+    t, X, y, y120, kind, absmove, atr, move = [], [], [], [], [], [], [], []
     for r in rows:
         evs = by_t.get(r["t"])
         if not evs or any(e["kind"] not in PRIORITY for e in evs):
@@ -80,8 +81,9 @@ def load(db: Path = store.DB) -> Dataset:
         y.append(CLASSES.index(r["label60"]))
         y120.append(CLASSES.index(r["label120"]) if r["label120"] in CLASSES else -1)
         kind.append(prim["kind"])
+        move.append(_num(r["move60"]))
         absmove.append(abs(_num(r["move60"])))
         atr.append(_num(r["r_atr15"]))
     return Dataset(np.array(t, dtype=np.int64), np.array(X, dtype=np.float64).reshape(len(t), len(FEATURE_NAMES)),
                    np.array(y, dtype=np.int64), np.array(y120, dtype=np.int64), np.array(kind, dtype=str),
-                   np.array(absmove, dtype=np.float64), np.array(atr, dtype=np.float64), list(FEATURE_NAMES))
+                   np.array(absmove, dtype=np.float64), np.array(atr, dtype=np.float64), list(FEATURE_NAMES), np.array(move, dtype=np.float64))

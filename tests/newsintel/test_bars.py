@@ -48,7 +48,7 @@ def test_resample_15m_ohlc():
 
 
 def test_session_day_split_at_18_ny():
-    a = int(datetime(2024, 3, 6, 17, 59, tzinfo=NY).timestamp())
+    a = int(datetime(2024, 3, 6, 16, 59, tzinfo=NY).timestamp())
     b = int(datetime(2024, 3, 6, 18, 0, tzinfo=NY).timestamp())
     m = _mk([a, b], [1, 2])
     end = int(datetime(2024, 3, 8, 0, 0, tzinfo=NY).timestamp())
@@ -65,3 +65,32 @@ def test_session_day_excludes_unfinished():
     assert session_day_candles(m, end, 5) == []
     end = int(datetime(2024, 3, 7, 17, 0, tzinfo=NY).timestamp())
     assert len(session_day_candles(m, end, 5)) == 1
+
+
+def test_session_day_excludes_closed_hour_and_future():
+    d = lambda h, mi: int(datetime(2024, 3, 7, h, mi, tzinfo=NY).timestamp())
+    m = _mk([d(16, 58), d(16, 59), d(17, 0), d(17, 30)], [1, 2, 99, 99])
+    out = session_day_candles(m, d(17, 0), 1)
+    assert len(out) == 1 and out[0].h == 2.5 and out[0].c == 2
+    # end inside the closed hour: minutes at or after end never leak in
+    out = session_day_candles(m, d(17, 20), 1)
+    assert out[0].h == 2.5  # 17:00 minute is in the closed hour, excluded too
+
+
+def test_resample_n_zero_returns_empty():
+    m = _mk([i * 60 for i in range(30)])
+    assert resample(m, 900, 30 * 60, 0) == []
+    assert resample(m, 900, 30 * 60, -1) == []
+
+
+def test_price_at_stale_boundary():
+    m = _mk([0], [10])
+    assert price_at(m, 60 + 1800) == 10
+    assert price_at(m, 60 + 1801) is None
+
+
+def test_resample_across_weekend_gap_returns_n():
+    ts = list(range(0, 30 * 60, 60)) + list(range(172800, 172800 + 30 * 60, 60))
+    m = _mk(ts)
+    out = resample(m, 900, 172800 + 30 * 60, 4)
+    assert [c.t for c in out] == [0, 900, 172800, 172800 + 900]

@@ -40,6 +40,8 @@ def resample(m: Minutes, sec: int, end: int, n: int) -> list[Candle]:
 
     Buckets with no minutes are skipped, so fewer than n may come back near the data's start.
     """
+    if n <= 0:
+        return []
     stop = end // sec * sec  # buckets starting before this are finished
     hi = int(np.searchsorted(m.t, stop, side="left"))
     span = n * sec * 2
@@ -54,7 +56,7 @@ def resample(m: Minutes, sec: int, end: int, n: int) -> list[Candle]:
     out = []
     for a, b in zip(bounds[:-1], bounds[1:]):
         out.append(_candle(m, slice(lo + a, lo + b), int(buckets[a]) * sec))
-    return out[-n:] if n > 0 else []
+    return out[-n:]
 
 
 def session_day_candles(m: Minutes, end: int, n: int) -> list[Candle]:
@@ -73,7 +75,8 @@ def session_day_candles(m: Minutes, end: int, n: int) -> list[Candle]:
     while len(out) < n:
         prev = d - timedelta(days=1)
         start = int(datetime(prev.year, prev.month, prev.day, 18, tzinfo=NY).timestamp())
-        stop = int(datetime(d.year, d.month, d.day, 18, tzinfo=NY).timestamp())
+        # market is closed 17:00-18:00; never include a minute not finished by `end`
+        stop = min(int(datetime(d.year, d.month, d.day, 17, tzinfo=NY).timestamp()), end - 59)
         if stop <= first:
             break
         s = window(m, start, stop)

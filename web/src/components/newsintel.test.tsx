@@ -63,3 +63,12 @@ it('fix round: bad range hidden, m5_ratio shown, region focusable, compact note 
   expect(screen.getByText('Models are stale.')).toBeTruthy()
   expect(screen.queryByText('second')).toBeNull()
 })
+
+it('fix round 2: all-zero probs hide the bars; valid range still renders', () => {
+  const { unmount } = render(<NewsIntelCard extra={{ ...base, probs: { down: 0, side: 0, up: 0 } }} />)
+  expect(screen.getByText('Chances not available')).toBeTruthy()
+  expect(screen.queryByRole('img')).toBeNull()
+  unmount()
+  render(<NewsIntelCard extra={base} />)
+  expect(screen.getByText(/range 4,060\.50 – 4,097\.25/)).toBeTruthy()
+})

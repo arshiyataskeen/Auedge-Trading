@@ -5,10 +5,12 @@ type Extra = Record<string, any> | undefined
 /** Whole percents that add to exactly 100 (largest remainder). */
 function split(p: { down: number; side: number; up: number }) {
   const k = ['down', 'side', 'up'] as const
-  const raw = k.map((x) => Math.max(0, Number(p[x]) || 0)), tot = raw.reduce((a, b) => a + b, 0) || 1
+  const raw = k.map((x) => Math.max(0, Number(p[x]) || 0)), tot = raw.reduce((a, b) => a + b, 0)
+  if (!(tot > 0) || !Number.isFinite(tot)) return null
   const sc = raw.map((v) => (100 * v) / tot), fl = sc.map(Math.floor)
   let left = 100 - fl.reduce((a, b) => a + b, 0)
-  sc.map((v, i) => [v - fl[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left-- } })
+  const ord = sc.map((v, i) => [v - fl[i], i]).sort((a, b) => b[0] - a[0])
+  for (let j = 0; left > 0; j++, left--) fl[ord[j % 3][1]]++
   return { down: fl[0], side: fl[1], up: fl[2] }
 }
 const sgn = (z: number | null | undefined) => (z == null ? '—' : `${z < 0 ? '−' : '+'}${Math.abs(z).toFixed(1)}`)
@@ -61,16 +63,19 @@ export default function NewsIntelCard({ extra, compact = false, avoid = false }:
           <div className="text-[11px] text-muted">Typical size for this kind of release; it does not say which way.</div>
         </div>
       )}
-      {ev && p && (
+      {ev && p && !c && (
+        <div className="mt-2 text-[11.5px] text-muted">Chances not available</div>
+      )}
+      {ev && p && c && (
         <div className="mt-2">
           <div className={LAB}>{live ? 'Chances' : 'Chances (advisory — not used for trades)'}</div>
-          <div role="img" aria-label={`down ${c!.down}%, flat ${c!.side}%, up ${c!.up}%`} className="mt-1 flex h-2 gap-0.5">
-            <span className="block rounded-sm bg-down" style={{ width: `${c!.down}%` }} />
-            <span className="block rounded-sm bg-hover" style={{ width: `${c!.side}%` }} />
-            <span className="block rounded-sm bg-up" style={{ width: `${c!.up}%` }} />
+          <div role="img" aria-label={`down ${c.down}%, flat ${c.side}%, up ${c.up}%`} className="mt-1 flex h-2 gap-0.5">
+            <span className="block rounded-sm bg-down" style={{ width: `${c.down}%` }} />
+            <span className="block rounded-sm bg-hover" style={{ width: `${c.side}%` }} />
+            <span className="block rounded-sm bg-up" style={{ width: `${c.up}%` }} />
           </div>
           <div className="mt-0.5 flex justify-between text-[11.5px] tabular-nums text-muted">
-            <span>down {c!.down}%</span><span>flat {c!.side}%</span><span>up {c!.up}%</span>
+            <span>down {c.down}%</span><span>flat {c.side}%</span><span>up {c.up}%</span>
           </div>
           {extra.uncertain && <div className="text-[11.5px] text-warn">Close to even and uncertain: not a trade signal.</div>}
         </div>

@@ -14,8 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
-from core import news
+from core import ai_summary, news
 from core.models import MarketContext
+from core.newsintel import explain
 from core.newsintel.bars import NY
 from core.newsintel.mode import NEWS_AGENT, effective_mode, mode
 
@@ -25,6 +26,8 @@ TIMEOUT_S = 8.0                     # under the 10 s agent limit in agents/base.
 MODELS_DIR = Path(__file__).resolve().parent.parent / "data" / "news_intel" / "models"   # = ml.export.MODELS_DIR
 META = "meta.json"
 CHANCES = "Chances (advisory, not used for trades)"
+_tasks: set = set()                # strong references to background note tasks
+_asked: set = set()                # note_keys already requested this run
 _cache: dict = {}                   # {"mtime": float, "art": Artifacts | None}
 
 
@@ -117,6 +120,24 @@ def _when(t: int, now: float) -> str:
 class NewsIntelAgent(BaseAgent):
     name, label, weight, votes = NEWS_AGENT, "News intelligence", 0, False
 
+    @staticmethod
+    def _note(intel, live_now: bool):
+        """The cached Claude note; schedules one background refresh per note_key (live contexts only)."""
+        try:
+            key = explain.note_key(intel)
+            if key is None:
+                return None
+            note = explain.cached_note(intel)
+            if note is None and live_now and key not in _asked and ai_summary.enabled():
+                _asked.add(key)
+                task = asyncio.create_task(explain.refresh_note(intel))
+                _tasks.add(task)
+                task.add_done_callback(_tasks.discard)
+            return note
+        except Exception as e:  # noqa: BLE001
+            print(f"[news_intel] note unavailable: {type(e).__name__}", file=sys.stderr)
+            return None
+
     async def analyze(self, ctx: MarketContext):
         if mode() == "off":
             return self.result(ctx, status="OK", bias="WAIT", confidence=0, headline="News intelligence is off",
@@ -189,6 +210,10 @@ class NewsIntelAgent(BaseAgent):
                 else:
                     parts.append("The up/flat/down chances are advisory only and are not used for trades.")
             summary = " ".join(parts)
+            note = self._note(intel, live_now)
+            if note:
+                summary = note
+                rows.append(["Plain-language note (Claude)", note])
         try:
             extra = jsonable(dataclasses.asdict(intel)) | {"mode": eff}
         except Exception as e:  # noqa: BLE001 - the card must still show

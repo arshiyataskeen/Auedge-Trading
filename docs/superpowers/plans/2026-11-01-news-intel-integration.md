@@ -104,6 +104,21 @@ The user's uncommitted edits to `app.py`, `backtest.py`, `agents/__init__.py` mu
 - [ ] **Step 2–4:** FAIL → implement → PASS (`pytest tests/newsintel/test_agent.py -q`), plus `python tools/smoke_test.py` still passes.
 - [ ] **Step 5:** commit new files + `core/models.py`; `agents/__init__.py` per Task 0. `feat(agents): advisory news intelligence agent`.
 
+### Task 3b: Claude news note (added 2026-11-01 at the user's request: "use the APIs I gave")
+
+**Files:**
+- Create: `core/newsintel/explain.py`
+- Modify: `agents/news_intel.py` (show the note)
+- Test: `tests/newsintel/test_explain.py`
+
+**Interfaces:**
+- Consumes: `Intel` (Task 2), `core.ai_summary.enabled()` and `core.ai_summary.MODEL` (same client pattern as `write_verdict`: `anthropic.AsyncAnthropic`, same fallbacks, refusal → None, any `APIError` → None).
+- Produces: `note_key(intel) -> str | None` (event t + phase + rounded surprise_z; None when phase is "none"); `cached_note(intel) -> str | None` (in-process dict, also persisted to `data/news_intel/notes.json`); `async refresh_note(intel) -> None` (writes the cache; never raises).
+- Behaviour: the agent never awaits Claude (agents time out after 10 s). It shows `cached_note` when present, else the rule-based summary, and schedules `refresh_note` with `asyncio.create_task` at most once per `note_key`. The prompt gives Claude only the `Intel` facts (event, phase, actual surprise, typical first-hour move, chances labelled advisory, similar past releases with dates and moves) and tells it: plain words for a trader, at most 70 words, never invent numbers or events, say the chances are advisory and not a trade signal, no advice. No key → no call, no note.
+- [ ] **Step 1: failing tests** (anthropic client mocked): one call per `note_key` even when the agent runs 3 times; no call when `ai_summary.enabled()` is False or phase is "none"; API error → no note and no exception; the prompt JSON contains only fields from `Intel`; the note is read back from `notes.json` after the in-process cache is cleared.
+- [ ] **Step 2–4:** FAIL → implement → PASS (`pytest tests/newsintel/test_explain.py -q`).
+- [ ] **Step 5:** commit `core/newsintel/explain.py agents/news_intel.py tests/newsintel/test_explain.py` — `feat(newsintel): plain-language Claude note for news events`.
+
 ### Task 4: Chief explanations and the mode switch
 
 **Files:**

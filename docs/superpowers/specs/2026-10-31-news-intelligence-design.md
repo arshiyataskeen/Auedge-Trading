@@ -27,7 +27,7 @@ Chief confidence ≥ 70 %: 45 trades, +5.29R. Agents' 4-hour direction calls: 45
 | Go-live bar | Better out-of-sample calibrated forecasts (log-loss) than technical-only **and** R/trade not lower, max drawdown not higher |
 | Integration | New `core/newsintel/` package + advisory `news_intel` agent + one walk-forward-validated stacker in the Chief |
 | New dependencies | `numpy`, `scikit-learn` |
-| Use of news layer (2026-11-01, after sub-project 2) | **Risk only.** Walk-forward on 456 out-of-sample releases (2022Q1–2026Q2): no news model beat technical-only on direction (Bayes 1.077, Forest 1.074, LogReg 1.109, KNN 1.321 vs technical 1.053 log-loss; all significantly worse). The volatility forecast beat naive (MAE $4.81 vs $5.11). User decision: the news layer feeds expected volatility and AVOID gates only; it never changes BUY/SELL direction or confidence. The stacker / `NEWSINTEL_MODE=live` direction path in §7 is dropped. |
+| Use of news layer (2026-11-01, after sub-project 2) | Walk-forward on 456 out-of-sample releases (2022Q1–2026Q2): no news model beat technical-only on direction (Bayes 1.077, Forest 1.074, LogReg 1.109, KNN 1.321 vs technical 1.053 log-loss; all significantly worse); the volatility forecast beat naive (MAE $4.81 vs $5.11). **User decision: direction is shown, acts only if proven.** The news layer always supplies expected volatility, AVOID gates and explanations; its direction view (stacked probabilities, similar past releases) is shown in advisory mode next to the Chief's call; it may change BUY/SELL or confidence only once the go-live check passes on a re-run of the walk-forward harness (re-run as new releases accumulate). |
 
 ## 3. Sub-projects (each gets its own plan → build → review)
 
@@ -137,11 +137,11 @@ Build: `python -m core.newsintel.build --backup <file.backup>` (idempotent; re-r
 
 ## 7. Sub-project 3 — integration
 
-> **Superseded in part (2026-11-01):** risk-only use was decided (see §2). Build only the volatility expectation,
-> the AVOID gates, the explanation (similar past releases, expected range) and the post-event learning of the
-> volatility forecast. Drop the direction stacker and `NEWSINTEL_MODE=live`; the agent never votes or changes
-> the Chief's direction or confidence. The trading half of the go-live check becomes: with the AVOID gates on vs
-> off in `backtest.py`, R per trade not lower and max drawdown not higher.
+> **Clarified (2026-11-01):** build the full design below, with `NEWSINTEL_MODE` defaulting to `advisory`.
+> Volatility expectation, AVOID gates and explanations are always on. The direction stacker is shown only
+> (advisory) and switches to `live` only when the walk-forward go-live check passes — the harness is re-run after
+> every 20 new releases (sub-project 4) and the switch requires the user's confirmation. At the time of writing
+> the check fails, so direction stays advisory.
 
 - `agents/news_intel.py`: `NewsIntelAgent(BaseAgent)` with `votes=False`, `weight=0`, added to `BUILT_IN`.
   Loads model artifacts from `data/news_intel/models/`. Within 24 h before an event: expected volatility and

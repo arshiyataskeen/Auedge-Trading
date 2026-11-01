@@ -210,3 +210,81 @@ it('with no real accounts it invites adding one; header links go to the journal'
   expect(screen.getByRole('link', { name: 'All records' })).toHaveAttribute('href', '/journal')
   expect(screen.getByText('Tips')).toBeInTheDocument()
 })
+
+it('the toggle and the today strip stay mounted while archived loads and after a failed archived fetch', async () => {
+  mockApi()
+  mount()
+  await screen.findByText('FTMO 100k')
+  let release!: () => void
+  const gate = new Promise<void>((r) => { release = r })
+  const base = globalThis.fetch as unknown as (u: string) => Promise<Response>
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/journal/accounts?archived=true') { await gate; return new Response('{"error":"boom"}', { status: 500 }) }
+    return base(url)
+  }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show archived accounts' }))
+  // during the refetch: no loading placeholder, previous cards and the toggle remain
+  expect(screen.getByRole('button', { name: /archived accounts/ })).toBeInTheDocument()
+  expect(screen.queryByTestId('loading-card')).not.toBeInTheDocument()
+  expect(screen.getByText('FTMO 100k')).toBeInTheDocument()
+  release()
+  await screen.findByRole('alert')
+  expect(screen.getByRole('button', { name: 'Hide archived accounts' })).toBeInTheDocument()
+  expect(screen.getByText('AuEdge call')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Hide archived accounts' }))
+  expect(await screen.findByText('FTMO 100k')).toBeInTheDocument()
+})
+
+it('an accounts error does not hide the today strip', async () => {
+  mockApi()
+  const base = globalThis.fetch as unknown as (u: string) => Promise<Response>
+  vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+    url.startsWith('/api/journal/accounts') ? new Response('{"error":"x"}', { status: 500 }) : base(url)))
+  mount()
+  await screen.findByRole('alert')
+  expect(screen.getByText('AuEdge call')).toBeInTheDocument()
+  expect(await screen.findByText('Non-Farm Payrolls')).toBeInTheDocument()
+})
+
+it('totals and cards wait for the demo query, so the demo account never flashes in', async () => {
+  mockApi()
+  let release!: () => void
+  const gate = new Promise<void>((r) => { release = r })
+  const base = globalThis.fetch as unknown as (u: string) => Promise<Response>
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => { if (url === '/api/demo') await gate; return base(url) }))
+  mount()
+  await waitFor(() => expect(calls).toContain('/api/journal/accounts'))
+  await new Promise((r) => setTimeout(r, 50))
+  expect(screen.queryByText('AuEdge Demo', { selector: 'b' })).not.toBeInTheDocument()
+  expect(stat('active accounts')).toHaveTextContent('—')
+  release()
+  await screen.findByText('FTMO 100k')
+  expect(stat('active accounts')).toHaveTextContent(/^2$/)
+})
+
+it('if /api/demo fails the page still renders the old way', async () => {
+  mockApi({ '/api/demo': undefined })
+  const base = globalThis.fetch as unknown as (u: string) => Promise<Response>
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => (url === '/api/demo' ? new Response('{}', { status: 500 }) : base(url))))
+  mount()
+  expect(await screen.findByText('FTMO 100k')).toBeInTheDocument()
+})
+
+it('the empty-state card is its own grid item beside the demo card, dashed; the demo card is accent-bordered', async () => {
+  mockApi({ '/api/journal/accounts': { accounts: [D], now: NOW } })
+  mount()
+  const add = (await screen.findByText('＋ Add your prop-firm account')).closest('a')!
+  const demoCard = screen.getByLabelText("Open the AuEdge demo account's journal")
+  expect(add.parentElement).toBe(demoCard.parentElement)
+  expect(add.className).toMatch(/border-dashed/)
+  expect(demoCard.className).toMatch(/border-up/)
+})
+
+it('the today strip is a 2-column grid under 1100 px and one column on phones', async () => {
+  mockApi()
+  mount()
+  const strip = await screen.findByTestId('today-strip')
+  expect(strip.className).toMatch(/grid-cols-1/)
+  expect(strip.className).toMatch(/min-\[640px\]:grid-cols-2/)
+  expect(strip.className).toMatch(/min-\[1100px\]:grid-cols-\[1\.3fr_1\.3fr_0\.9fr_1fr\]/)
+})

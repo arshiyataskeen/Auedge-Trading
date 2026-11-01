@@ -49,6 +49,9 @@ export function Signed({ v }: { v: number | null | undefined }) {
 }
 
 const CARD = 'block border-b border-r border-line bg-panel p-3 text-inherit no-underline hover:bg-panel2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+/** The demo card's accent: green border + inset left bar (old .demoacard). */
+const DEMO = CARD.replace('border-line', 'border-up') + ' shadow-[inset_3px_0_0_var(--up)]'
+export const EMPTY = 'flex min-h-[160px] flex-col justify-center gap-1.5 border border-dashed border-line bg-panel p-3 text-inherit no-underline hover:bg-panel2'
 const day = (ts: number | null | undefined) =>
   ts ? new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
@@ -113,7 +116,7 @@ export function DemoCard({ dm, to }: { dm: Demo | undefined; to: string }) {
   const label = "Open the AuEdge demo account's journal"
   if (!dm) {
     return (
-      <Link to={to} aria-label={label} className={CARD}>
+      <Link to={to} aria-label={label} className={DEMO}>
         <Head title="AuEdge Demo" sub="Automatic · loading…" badge={null} />
       </Link>
     )
@@ -127,7 +130,7 @@ export function DemoCard({ dm, to }: { dm: Demo | undefined; to: string }) {
     : dm.today <= -DEMO_DAY_LOSS ? ['SELL', 'Day stopped (loss limit)']
     : dm.today >= DEMO_DAY_PROFIT ? ['BUY', 'Day done (+$150 target)'] : ['NA', 'Waiting for a call']
   return (
-    <Link to={to} aria-label={label} className={CARD}>
+    <Link to={to} aria-label={label} className={DEMO}>
       <Head title="AuEdge Demo" sub={`Automatic demo trading · ${usd(dm.start)} account · ${dm.lot} lot`} badge={<Bias kind={kind}>{text}</Bias>} />
       <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px] text-muted">
         <Chip>AuEdge's own calls</Chip><span>balance <b className="tabular-nums text-strong">{usd(dm.balance)}</b></span>

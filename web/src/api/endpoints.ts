@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getJSON, sendOk } from './client'
 import type {
   AccountBody, AdvanceBody, Analysis, BacktestInfo, BacktestStatus, BtResult, CalendarDayDetail, CalendarResp, Calls,
@@ -119,7 +119,7 @@ export const useTradeReview = () =>
 /** GET /api/journal/accounts[?archived=true] */
 export const useJournalAccounts = (archived = false) =>
   useQuery({
-    queryKey: qk.jAccounts(archived),
+    queryKey: qk.jAccounts(archived), placeholderData: keepPreviousData,
     queryFn: () => getJSON<JournalAccounts>(`/api/journal/accounts${archived ? '?archived=true' : ''}`),
   })
 

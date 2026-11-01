@@ -5,8 +5,7 @@ import type { Demo, JournalAccount } from '../../api/types'
 import { price } from '../../lib/format'
 import { Bias, Signed, usd } from './Cards'
 
-const btn = 'inline-block rounded border border-line bg-panel2 px-2.5 py-1 text-[12px] text-strong no-underline hover:bg-hover'
-const btnPrimary = 'inline-block rounded border border-accent bg-accent px-2.5 py-1 text-[12px] font-semibold text-white no-underline hover:opacity-90'
+import { btn, btnPrimary } from './ui'
 
 function Cell({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -26,7 +25,7 @@ function nextIn(at: number | null, now: number): string {
 }
 
 /** Port of todayHtml: AuEdge's call, the demo position, today's result, next big news. `demo` carries live-price P&L. */
-export default function TodayStrip({ demo, accounts }: { demo: Demo | undefined; accounts: JournalAccount[] }) {
+export default function TodayStrip({ demo, accounts }: { demo: Demo | undefined; accounts: JournalAccount[] | undefined }) {
   const analysis = useAnalysis()
   const news = useNews()
   const [now, setNow] = useState(() => Date.now())
@@ -44,10 +43,10 @@ export default function TodayStrip({ demo, accounts }: { demo: Demo | undefined;
       {plan.kind === 'now' ? (
         <>
           <Meta>Entry {price(((plan.entry_lo ?? 0) + (plan.entry_hi ?? 0)) / 2)} · stop {price(plan.stop)} · half {price(plan.be_at)} · target {price(plan.t1)}</Meta>
-          <Link to="/journal" className={btnPrimary}>＋ Add to my journal</Link>
+          <Link to="/journal" className={`inline-block ${btnPrimary}`}>＋ Add to my journal</Link>
         </>
       ) : <Meta cls="line-clamp-2">{c.headline || ''}</Meta>}
-      <Link to="/trade" className={btn}>Chart dashboard →</Link>
+      <Link to="/trade" className={`inline-block ${btn}`}>Chart dashboard →</Link>
     </>
   )
 
@@ -60,23 +59,24 @@ export default function TodayStrip({ demo, accounts }: { demo: Demo | undefined;
         <b className="ml-auto text-[15px]"><Signed v={Math.round(dflo * 100) / 100} /></b>
       </div>
       <Meta>Entry {price(dpos[0].entry)} · stop {price(dpos[0].stop_now ?? dpos[0].stop)}{dpos[0].half ? ' (breakeven)' : ''} · half {price(dpos[0].be)} · target {price(dpos[0].t1)}</Meta>
-      <Link to="/demo" className={btn}>Open the Demo tab →</Link>
+      <Link to="/demo" className={`inline-block ${btn}`}>Open the Demo tab →</Link>
     </>
   ) : (
     <>
       <div className="text-[15px] font-bold text-strong">No open trade</div>
       <Meta>Balance {usd(demo.balance)} · {demo.trades} closed trade(s) · waiting for the next BUY / SELL NOW call.</Meta>
-      <Link to="/demo" className={btn}>Open the Demo tab →</Link>
+      <Link to="/demo" className={`inline-block ${btn}`}>Open the Demo tab →</Link>
     </>
   )
 
-  const jToday = accounts.filter((x) => !x.archived && x.current).reduce((s, x) => s + x.current!.check.today_pnl, 0)
+  // Intentional: the demo journal account is excluded (the old page double-counted it with the demo's own P&L).
+  const jToday = (accounts ?? []).filter((x) => !x.archived && x.current).reduce((s, x) => s + x.current!.check.today_pnl, 0)
   const nowS = now / 1000
   const ev = (news.data?.events ?? []).find((e) => e.t > nowS && e.impact === 'High')
   const evIn = ev ? ev.t - nowS : 0
 
   return (
-    <div className="mb-3 grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] border-l border-t border-line" data-testid="today-strip">
+    <div className="mb-3 grid grid-cols-1 min-[640px]:grid-cols-2 min-[1100px]:grid-cols-[1.3fr_1.3fr_0.9fr_1fr] border-l border-t border-line" data-testid="today-strip">
       <Cell title="AuEdge call">{call}</Cell>
       <Cell title="AuEdge demo position">{demoCell}</Cell>
       <Cell title="Today">

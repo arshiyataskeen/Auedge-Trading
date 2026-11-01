@@ -6,11 +6,10 @@ import PageHeader from '../../components/PageHeader'
 import QueryCard from '../../components/QueryCard'
 import { money, toneOf } from '../../lib/format'
 import { withLivePrice } from '../demo/logic'
-import { AccountCard, DemoCard, TONE } from './Cards'
+import LoadingCard from '../../components/LoadingCard'
+import { AccountCard, DemoCard, EMPTY, TONE } from './Cards'
 import TodayStrip from './TodayStrip'
-
-const btn = 'rounded border border-line bg-panel2 px-3 py-1.5 text-[12.5px] text-strong no-underline hover:bg-hover'
-const btnPrimary = 'rounded border border-accent bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white no-underline hover:opacity-90'
+import { btn, btnPrimary } from './ui'
 
 function Stat({ v, k, tone = '' }: { v: string | number; k: string; tone?: 'up' | 'dn' | '' }) {
   return (
@@ -35,60 +34,61 @@ export default function DashboardPage() {
     return { ...d, open: v.open, equity: v.equity }
   }, [demoQ.data, live.price])
   const demoId = demoQ.data?.journal_account
+  // Hold the totals/cards until /api/demo has settled (success or failure) so the demo account never flashes in.
+  const settled = !demoQ.isPending
+  const list = accounts.data?.accounts ?? []
+  const real = settled ? list.filter((a) => a.current && a.id !== demoId) : []
+  const act = real.filter((a) => !a.archived)
+  const ready = settled && accounts.data !== undefined
+  const today = Math.round(act.reduce((s, a) => s + a.current!.check.today_pnl, 0) * 100) / 100
+  const funded = act.filter((a) => a.current!.is_funded && !a.current!.result).length
 
   return (
     <div>
       <PageHeader title="My accounts" subtitle="Prop-firm challenges and funded accounts · phase-wise trading journal"
         actions={<>
-          <Link to="/journal" className={btn}>All records</Link>
-          <Link to="/journal?new=1" className={btnPrimary}>＋ New account</Link>
+          <Link to="/journal" className={`${btn} px-3 py-1.5`}>All records</Link>
+          <Link to="/journal?new=1" className={`${btnPrimary} px-3 py-1.5`}>＋ New account</Link>
         </>} />
-      <QueryCard query={accounts} title="Accounts">
-        {({ accounts: list }) => {
-          const all = list ?? []
-          const real = all.filter((a) => a.current && a.id !== demoId)
-          const act = real.filter((a) => !a.archived)
-          const funded = act.filter((a) => a.current!.is_funded && !a.current!.result).length
-          const today = Math.round(act.reduce((s, a) => s + a.current!.check.today_pnl, 0) * 100) / 100
-          return (
-            <>
-              <div className="mb-3 grid grid-cols-2 gap-2 min-[700px]:grid-cols-4">
-                <Stat v={act.length} k="active accounts" />
-                <Stat v={funded} k="funded" />
-                <Stat v={money(today)} k="today, all accounts" tone={toneOf(today)} />
-                <Stat v={act.reduce((s, a) => s + (a.n_trades ?? 0), 0)} k="trades logged" />
+      <div className="mb-3 grid grid-cols-2 gap-2 min-[700px]:grid-cols-4">
+        <Stat v={ready ? act.length : '—'} k="active accounts" />
+        <Stat v={ready ? funded : '—'} k="funded" />
+        <Stat v={ready ? money(today) : '—'} k="today, all accounts" tone={ready ? toneOf(today) : ''} />
+        <Stat v={ready ? act.reduce((s, a) => s + (a.n_trades ?? 0), 0) : '—'} k="trades logged" />
+      </div>
+      <TodayStrip demo={demo} accounts={settled ? list.filter((a) => a.id !== demoId) : undefined} />
+      <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(340px,28%)]">
+        <div className="min-w-0">
+          <QueryCard query={accounts} title="Accounts">
+            {() => !settled ? <LoadingCard /> : (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] content-start border-l border-t border-line">
+                <DemoCard dm={demo} to={demoId ? `/journal/${demoId}` : '/demo'} />
+                {real.length ? real.map((a) => <AccountCard key={a.id} a={a} />) : (
+                  <Link to="/journal?new=1" className={EMPTY}>
+                    <b className="text-strong">＋ Add your prop-firm account</b>
+                    <div className="text-[11.5px] text-muted">
+                      Enter your firm's rules: profit target, daily loss, max loss and minimum days for each phase. AuEdge tracks them for every trade you log.
+                    </div>
+                  </Link>
+                )}
               </div>
-              <TodayStrip demo={demo} accounts={all.filter((a) => a.id !== demoId)} />
-              <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(340px,28%)]">
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] content-start border-l border-t border-line">
-                  <DemoCard dm={demo} to={demoId ? `/journal/${demoId}` : '/demo'} />
-                  {real.length ? real.map((a) => <AccountCard key={a.id} a={a} />) : (
-                    <Link to="/journal?new=1" className="block border-b border-r border-line bg-panel p-3 text-inherit no-underline hover:bg-panel2">
-                      <b className="text-strong">＋ Add your prop-firm account</b>
-                      <div className="mt-1 text-[11.5px] text-muted">
-                        Enter your firm's rules: profit target, daily loss, max loss and minimum days for each phase. AuEdge tracks them for every trade you log.
-                      </div>
-                    </Link>
-                  )}
-                </div>
-                <aside className="flex min-w-0 flex-col items-start gap-2">
-                  <section className="w-full rounded border border-line bg-panel p-3">
-                    <h2 className="mb-2 text-[12px] font-semibold text-strong">Tips</h2>
-                    <ul className="list-disc space-y-1.5 pl-4 text-[12px] text-muted">
-                      <li>Log every trade, wins and losses, with how you felt and whether you followed your plan.</li>
-                      <li>Check <b className="text-strong">today's loss room</b> before each trade; never risk more than what's left.</li>
-                      <li>The journal checks closed trades only. Your firm also counts open (floating) losses, so leave a buffer.</li>
-                    </ul>
-                  </section>
-                  <button type="button" onClick={() => setArchived((v) => !v)} className="text-[12px] text-accent underline">
-                    {archived ? 'Hide archived accounts' : 'Show archived accounts'}
-                  </button>
-                </aside>
-              </div>
-            </>
-          )
-        }}
-      </QueryCard>
+            )}
+          </QueryCard>
+        </div>
+        <aside className="flex min-w-0 flex-col items-start gap-2">
+          <section className="w-full rounded border border-line bg-panel p-3">
+            <h2 className="mb-2 text-[12px] font-semibold text-strong">Tips</h2>
+            <ul className="list-disc space-y-1.5 pl-4 text-[12px] text-muted">
+              <li>Log every trade, wins and losses, with how you felt and whether you followed your plan.</li>
+              <li>Check <b className="text-strong">today's loss room</b> before each trade; never risk more than what's left.</li>
+              <li>The journal checks closed trades only. Your firm also counts open (floating) losses, so leave a buffer.</li>
+            </ul>
+          </section>
+          <button type="button" onClick={() => setArchived((v) => !v)} className="text-[12px] text-accent underline">
+            {archived ? 'Hide archived accounts' : 'Show archived accounts'}
+          </button>
+        </aside>
+      </div>
     </div>
   )
 }

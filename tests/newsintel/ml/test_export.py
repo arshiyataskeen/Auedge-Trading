@@ -188,15 +188,22 @@ def test_m5_range_ignores_event_windows():
     assert len(E.m5_range_ratio(m, [])) > len(base)
 
 
-def test_until_keeps_the_future_out(ds, mins, tmp_path):
+def _cut(until):
+    return int(datetime.strptime(until, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+
+
+def test_until_keeps_the_future_out(ds, tmp_path):
     until = "2022-10-01"
-    cut = int(datetime.strptime(until, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    cut = _cut(until)
     mins = make_minutes(cut - 2 * 86400, days=4)  # candles on both sides of the cut
-    late = ds.t >= cut
-    after = mins.t >= cut
-    assert late.any() and (~late).any() and after.any() and (~after).any()
+    ds = replace(ds, t=ds.t.copy())
+    j = int(np.flatnonzero(ds.t < cut)[-1])
+    ds.t[j] = cut - 30 * 60  # a release whose 60/120-minute label window runs past the cut
+    late = ds.t + 7200 >= cut  # label window not finished before the cut
+    after = mins.t >= cut - 7200
+    assert late[j] and late.sum() > 1 and (~late).any() and after.any() and (~after).any()
     clean = E.export(ds, tmp_path / "a", until=until, minutes=mins)
-    # wreck everything at or after the cut: features, labels, moves, candles
+    # wreck everything whose window reaches the cut: features, labels, moves, candles
     bad = replace(ds, X=ds.X.copy(), y=ds.y.copy(), y120=ds.y120.copy(), absmove60=ds.absmove60.copy(),
                   atr15=ds.atr15.copy(), move60=ds.move60.copy())
     bad.X[late] = bad.X[late] * 7 + 3
@@ -206,7 +213,7 @@ def test_until_keeps_the_future_out(ds, mins, tmp_path):
     bad.absmove60[late] = np.abs(bad.move60[late])
     bad.atr15[late] *= 9
     wild = Minutes(mins.t, mins.o, mins.h.copy(), mins.l.copy(), mins.c)
-    wild.h[after] += 1000.0
+    wild.h[after] += 1000.0  # includes the last 120 minutes before the cut
     dirty = E.export(bad, tmp_path / "b", until=until, minutes=wild)
     for k in clean:
         if k != "version":
@@ -214,5 +221,42 @@ def test_until_keeps_the_future_out(ds, mins, tmp_path):
     a, b = E.load_artifacts(tmp_path / "a"), E.load_artifacts(tmp_path / "b")
     assert a.trained_until == until and a.trained_through < until
     assert len(a.neighbours_X) == int((~late).sum())
+    assert a.neighbours_meta["t"].max() + 7200 < cut
     assert np.array_equal(a.neighbours_X, b.neighbours_X) and a.vol_table == b.vol_table
     assert a.stats_rows == b.stats_rows and a.m5_range_p99 == b.m5_range_p99
+
+
+def test_truncate_recounts_missing_feature_rows(ds):
+    flags = np.zeros(len(ds.t), dtype=bool)
+    flags[[0, 1, len(flags) - 1]] = True  # two early rows, one at the very end
+    d = replace(ds, none_row=flags, n_none_features=3)
+    cut = int(ds.t[100]) + 7201
+    out = E.truncate(d, datetime.fromtimestamp(cut, timezone.utc).strftime("%Y-%m-%d"))
+    assert len(out.t) < len(d.t)
+    assert out.n_none_features == int(out.none_row.sum()) == 2
+    assert E.truncate(replace(ds, n_none_features=5), "2022-10-01").n_none_features == 5  # no per-row flags to recount
+
+
+def test_load_corrupt_files_return_none(exported, tmp_path, capsys):
+    src = exported[0]
+    raw = (src / "models.pkl").read_bytes()
+    (tmp_path / "meta.json").write_text((src / "meta.json").read_text())
+    (tmp_path / "models.pkl").write_bytes(raw[: len(raw) // 2])  # truncated pickle
+    assert E.load_artifacts(tmp_path) is None
+    assert capsys.readouterr().err.startswith("[newsintel] models unavailable: ")
+    (tmp_path / "models.pkl").write_bytes(b"not a pickle at all")
+    assert E.load_artifacts(tmp_path) is None
+    (tmp_path / "models.pkl").write_bytes(raw)
+    assert E.load_artifacts(tmp_path) is not None
+    (tmp_path / "meta.json").write_text("{garbage")
+    assert E.load_artifacts(tmp_path) is None
+    assert "[newsintel] models unavailable: " in capsys.readouterr().err
+
+
+def test_cli_rejects_bad_until(capsys):
+    from core.newsintel.ml.__main__ import main
+    for bad in ("2025-8-1x", "01/08/2025", "2025-13-01"):
+        with pytest.raises(SystemExit) as e:
+            main(["--export", "--until", bad])
+        assert e.value.code == 2
+    assert "YYYY-MM-DD" in capsys.readouterr().err

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import pickle
+import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,7 @@ UNCERTAIN_MAX_P_PCT = 20  # stacker confidence below this percentile of out-of-s
 UNCERTAIN_BHATT_PCT = 80  # neighbours' reactions less alike than this percentile of out-of-sample rows = "uncertain"
 M5_PCT = 99
 M5_ATR_N = 14
+LABEL_HORIZON = 120 * 60  # longest label window (label120), seconds
 EVENT_BEFORE, EVENT_AFTER = 30 * 60, 180 * 60  # seconds around an event that count as "event window"
 
 
@@ -61,11 +63,17 @@ def _cut(until: str) -> int:
 
 
 def truncate(ds: Dataset, until: str) -> Dataset:
-    """Rows with t < `until` (YYYY-MM-DD, UTC midnight)."""
-    keep = np.flatnonzero(ds.t < _cut(until))
+    """Rows whose whole label window ends before `until` (YYYY-MM-DD, UTC midnight): t + 120 min < until.
+
+    The longest label horizon is used for every row, so label60, label120, move60 and absmove60 of a kept row
+    never depend on a price at or after `until`.
+    """
+    keep = np.flatnonzero(ds.t + LABEL_HORIZON < _cut(until))
     return replace(ds, t=ds.t[keep], X=ds.X[keep], y=ds.y[keep], y120=ds.y120[keep], kind=ds.kind[keep],
                    absmove60=ds.absmove60[keep], atr15=ds.atr15[keep],
-                   move60=None if ds.move60 is None else ds.move60[keep])
+                   move60=None if ds.move60 is None else ds.move60[keep],
+                   none_row=None if ds.none_row is None else ds.none_row[keep],
+                   n_none_features=ds.n_none_features if ds.none_row is None else int(ds.none_row[keep].sum()))
 
 
 def choose_primary(res: harness.Results) -> str:
@@ -140,7 +148,7 @@ def export(ds: Dataset, out: Path = MODELS_DIR, until: str | None = None, minute
             raise FileNotFoundError(f"1-minute history not found: {MINUTES_CACHE} (run python -m core.newsintel.build)")
         minutes = _from_npz(MINUTES_CACHE)
     if until is not None:
-        k = int(np.searchsorted(minutes.t, _cut(until), side="left"))
+        k = int(np.searchsorted(minutes.t, _cut(until) - LABEL_HORIZON, side="left"))
         minutes = Minutes(*(a[:k] for a in (minutes.t, minutes.o, minutes.h, minutes.l, minutes.c)))
 
     alln = np.arange(len(ds.t))
@@ -180,10 +188,24 @@ def export(ds: Dataset, out: Path = MODELS_DIR, until: str | None = None, minute
     return meta
 
 
+LOAD_ERRORS = (pickle.UnpicklingError, AttributeError, EOFError, ModuleNotFoundError, ImportError, ValueError,
+               KeyError, json.JSONDecodeError)
+
+
 def load_artifacts(path: Path = MODELS_DIR) -> Artifacts | None:
-    """The exported artifacts, or None when the export has never been run."""
+    """The exported artifacts, or None when they are missing or unreadable (one log line says why)."""
     f = Path(path) / PICKLE
     if not f.exists():
         return None
-    with open(f, "rb") as fh:
-        return pickle.load(fh)
+    try:
+        with open(f, "rb") as fh:
+            art = pickle.load(fh)
+        meta_file = Path(path) / META
+        if meta_file.exists():
+            json.loads(meta_file.read_text(encoding="utf-8"))  # must at least be valid JSON
+        if not isinstance(art, Artifacts):
+            raise ValueError("models.pkl does not hold Artifacts")
+        return art
+    except LOAD_ERRORS as e:
+        print(f"[newsintel] models unavailable: {type(e).__name__}: {e}", file=sys.stderr)
+        return None

@@ -63,7 +63,9 @@ def with_label(ds: Dataset, label: str) -> Dataset:
     keep = np.flatnonzero(ds.y120 >= 0)
     return replace(ds, t=ds.t[keep], X=ds.X[keep], y=ds.y120[keep].copy(), y120=ds.y120[keep], kind=ds.kind[keep],
                    absmove60=ds.absmove60[keep], atr15=ds.atr15[keep],
-                   move60=None if ds.move60 is None else ds.move60[keep])
+                   move60=None if ds.move60 is None else ds.move60[keep],
+                   none_row=None if ds.none_row is None else ds.none_row[keep],
+                   n_none_features=ds.n_none_features if ds.none_row is None else int(ds.none_row[keep].sum()))
 
 
 RECENT_N = 40

@@ -3,7 +3,7 @@ import type { AgentView, Track } from '../../api/types'
 /** Old LABELS: short agent names. */
 export const LABELS: Record<string, string> = {
   wyckoff: 'Wyckoff', elliott: 'Elliott', smc: 'Smart money', price_action: 'Price action', trend: 'Trend', macro: 'Macro',
-  skeptic: 'Skeptic', sentiment: 'Psychology', stophunt: 'Stop-hunt', ict: 'ICT', psychology: 'Discipline',
+  skeptic: 'Skeptic', sentiment: 'Psychology', stophunt: 'Stop-hunt', ict: 'ICT', psychology: 'Discipline', news_intel: 'News intelligence',
 }
 export const labelOf = (k: string) => LABELS[k] || k
 

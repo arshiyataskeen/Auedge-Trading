@@ -221,6 +221,8 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
     off = set([drop] if isinstance(drop, str) else drop)          # health check: these votes are left out
     if SETTINGS.get("live_votes", True):
         off |= set(votes.off())                                   # the same votes as live (review board / you)
+    else:
+        off |= set(votes.DEFAULT_OFF)                             # default-off votes (news) stay off unless added
     off -= set(SETTINGS.get("add") or [])                          # review board: test switching a vote back on
     for name in off:
         w[name] = 0
@@ -1364,6 +1366,15 @@ async def review(progress_file: Path | None, apply: bool) -> dict:
                           "rpt_6m": [v["h1_rpt"], v["h2_rpt"]], "rpt_base": [b6["h1_rpt"], b6["h2_rpt"]],
                           "dd_r": [v["dd_r"], b6["dd_r"]],
                           "halves_6m": [round(v["h1_usd"] - b6["h1_usd"], 2), round(v["h2_usd"] - b6["h2_usd"], 2)]})
+    from core.newsintel.mode import NEWS_AGENT
+    for c in cands:                          # news models trained over the evaluation window: results are optimistic
+        if c.get("agent") == NEWS_AGENT:
+            ins = {k: r["params"].get("news_in_sample") for k, r in results.items()}
+            c["in_sample"] = bool(any(ins.values()))
+            if c["in_sample"]:
+                tt = six["params"].get("news_models_trained_through")
+                c["warning"] = (f"In-sample warning: the news models were trained through {tt}, which overlaps the "
+                                "evaluation window, so this result is optimistic.")
     cands.sort(key=lambda c: -(c["gain_6m"] + c["gain_month"]))
     voters = len([a for a in BASE_WEIGHTS if BASE_WEIGHTS[a] > 0]) - len(off_now)
     chosen = []
@@ -1411,6 +1422,9 @@ async def review(progress_file: Path | None, apply: bool) -> dict:
                    (f"Filter {c['flag']} {c['action'].upper()} " if "flag" in c else
                     f"{AGENT_NAMES.get(c['agent'], c['agent'])} vote {c['action'].upper()} ") +
                    f"(6 months {c['gain_6m']:+,.0f} $, last month {c['gain_month']:+,.0f} $)" for c in chosen) + ".")
+    warns = [c["warning"] for c in chosen if c.get("warning")]
+    if warns:
+        summary += " " + " ".join(dict.fromkeys(warns))
     return {"kind": "review", "made_at": time.time(), "apply": apply, "votes_before": off_now, "votes_after": sorted(new_off),
             "intel_after": intel_after,
             "changes": chosen, "candidates": cands, "confirm": confirm, "summary": summary,

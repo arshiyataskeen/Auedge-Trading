@@ -1,5 +1,7 @@
 """News intelligence: the news picture around US releases (before / after, typical first-hour move, advisory chances,
-similar past releases). Display only: never votes (weight 0, votes=False), always WAIT with confidence 0."""
+similar past releases). Its vote is OFF by default (core/votes.py DEFAULT_OFF; the review board decides): the result
+always says WAIT / 0 and carries the candidate vote in extra["vote"]; core.newsintel.vote.promote applies it only when
+the Chief gives the agent a weight above 0."""
 from __future__ import annotations
 
 import asyncio
@@ -122,7 +124,7 @@ def _when(t: int, now: float) -> str:
 
 
 class NewsIntelAgent(BaseAgent):
-    name, label, weight, votes = NEWS_AGENT, "News intelligence", 0, False
+    name, label, weight, votes = NEWS_AGENT, "News intelligence", 1.0, True   # vote OFF by default (core/votes.py)
 
     @staticmethod
     def _note(intel, live_now: bool):
@@ -223,6 +225,8 @@ class NewsIntelAgent(BaseAgent):
         except Exception as e:  # noqa: BLE001 - the card must still show
             print(f"[news_intel] extra not serialisable: {type(e).__name__}: {e}", file=sys.stderr)
             extra = {"mode": eff, "note": note}
+        from core.newsintel.vote import news_vote
+        extra["vote"] = news_vote(intel)
         try:
             lv = _live()
             from core.newsintel.m5 import m5_confirmations

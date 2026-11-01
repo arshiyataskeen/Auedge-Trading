@@ -140,6 +140,8 @@ def _quality(ctx: MarketContext, rep: ChiefReport, side: str, plan: dict | None)
 def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, float],
           data_check: AgentResult | None) -> ChiefReport:
     rep = ChiefReport(price=ctx.spot.price if ctx.spot else None)
+    from core.newsintel.vote import promote
+    results = promote(results, weights)          # the news agent's optional vote (only when its weight is above 0)
     infos, total = {}, 0.0
     for key, name, mult, w in TFS:
         cs = ctx.struct(key)

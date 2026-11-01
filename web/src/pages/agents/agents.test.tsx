@@ -256,3 +256,13 @@ it('Track record says so when the track record is unavailable', async () => {
   mount('/agents?tab=track')
   expect(await screen.findByText('Track record unavailable.')).toBeInTheDocument()
 })
+
+it('shows the News intelligence vote chip struck through while its vote is off', async () => {
+  mockApi({ '/api/review': { ...REVIEW, votes: { off: ['news_intel'], auto_apply: false },
+    agents: [...REVIEW.agents, { name: 'news_intel', label: 'News intelligence', weight: 1 }] } })
+  mount()
+  const g = await screen.findByRole('group', { name: 'Agent votes' })
+  const c = within(g).getByRole('button', { name: /News intelligence/ })
+  expect(c).toHaveAttribute('aria-pressed', 'false')
+  expect(c.className).toContain('line-through')
+})

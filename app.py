@@ -208,6 +208,8 @@ async def run_analysis(use_ai: bool = True) -> dict:
     voting_off = set(votes.off())
     labels = {a.name: a.label for a in agents}
     report = chief(ctx, results, weights, check)
+    from core.newsintel.vote import promote
+    results = promote(results, weights)                            # cards show the news vote when it is on
     _apply_news_hook(report, results)
     try:
         track.evaluate(ctx)          # settle earlier trades first, so the coach sees today's real results

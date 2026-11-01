@@ -14,6 +14,7 @@ from pathlib import Path
 DATA = Path(__file__).resolve().parent.parent / "data"
 VOTES = DATA / "agent_votes.json"
 LOG = DATA / "review_log.json"
+DEFAULT_OFF = ("news_intel",)   # votes that start OFF until the board (or you) switches them on (= NEWS_AGENT)
 MIN_VOTERS = 5           # the board never leaves fewer than this many voting agents
 
 
@@ -33,7 +34,15 @@ def _write(path: Path, data) -> None:
 
 def state() -> dict:
     s = _read(VOTES, {})
-    return {"off": sorted(set(s.get("off", []))), "auto_apply": s.get("auto_apply", True)}
+    off = set(s.get("off", [])) | (set(DEFAULT_OFF) - set(s.get("on", [])))
+    return {"off": sorted(off), "auto_apply": s.get("auto_apply", True)}
+
+
+def _save(off_list, auto_apply: bool) -> None:
+    """Persist: `off` = switched-off votes, `on` = default-off votes that were explicitly switched on."""
+    off_list = set(off_list)
+    _write(VOTES, {"off": sorted(off_list - set(DEFAULT_OFF)), "on": sorted(set(DEFAULT_OFF) - off_list),
+                   "auto_apply": bool(auto_apply)})
 
 
 def off() -> list[str]:
@@ -45,7 +54,7 @@ def log() -> list[dict]:
 
 
 def set_auto_apply(on: bool) -> None:
-    _write(VOTES, {**state(), "auto_apply": bool(on)})
+    _save(state()["off"], on)
 
 
 def _intel_state() -> dict:
@@ -67,7 +76,7 @@ def change(new_off: list[str], by: str, changes: list[dict], note: str = "", rev
         entry["intel_after"] = {k: bool(v) for k, v in intel_after.items()}
         for k, v in intel_after.items():
             set_flag(k, bool(v), by, note)
-    _write(VOTES, {**state(), "off": entry["after"]})
+    _save(entry["after"], state()["auto_apply"])
     _write(LOG, (log() + [entry])[-200:])
     return entry
 

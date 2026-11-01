@@ -68,7 +68,7 @@ def test_effective_mode(monkeypatch):
 
 def test_identity():
     a = ni.NewsIntelAgent()
-    assert (a.name, a.label, a.weight, a.votes) == ("news_intel", "News intelligence", 0, False)
+    assert (a.name, a.label, a.weight, a.votes) == ("news_intel", "News intelligence", 1.0, True)
 
 
 def test_off_mode(monkeypatch):

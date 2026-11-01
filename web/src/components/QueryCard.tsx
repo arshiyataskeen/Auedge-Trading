@@ -13,8 +13,10 @@ export default function QueryCard<T>({ query, title, children }: Props<T>) {
           {title && <h3 className="mb-2 text-[12px] font-semibold text-strong">{title}</h3>}
           <div role="alert" className="flex items-center gap-3 text-[12px] text-down">
             <span>{title ? `${title}: ` : ''}{(query.error as Error).message}</span>
-            <button type="button" onClick={() => query.refetch()}
-              className="rounded border border-line px-2 py-0.5 text-strong hover:bg-panel2">Retry</button>
+            <button type="button" disabled={query.isFetching} onClick={() => query.refetch()}
+              className="rounded border border-line px-2 py-0.5 text-strong hover:bg-panel2 disabled:opacity-60">
+              {query.isFetching ? 'Retrying…' : 'Retry'}
+            </button>
           </div>
         </section>
       )

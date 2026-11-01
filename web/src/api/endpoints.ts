@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getJSON, postJSON, sendJSON } from './client'
+import { getJSON, sendOk } from './client'
 import type {
   AccountBody, AdvanceBody, Analysis, BacktestInfo, BacktestStatus, BtResult, CalendarDayDetail, CalendarResp, Calls,
   Candles, Demo, DemoMonth, HealthLatest, JournalAccount, JournalAccounts, JournalTrades, News, OkResult, Review,
@@ -157,7 +157,7 @@ export function useRefreshAnalysis() {
 export function useRunBacktest() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: RunBody) => postJSON<RunReply>('/api/backtest/run', body),
+    mutationFn: (body: RunBody) => sendOk<RunReply>('POST', '/api/backtest/run', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.btStatus }),
   })
 }
@@ -166,7 +166,7 @@ export function useRunBacktest() {
 export function useRunHealth() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (period: string) => postJSON<RunReply>('/api/health/run', { period }),
+    mutationFn: (period: string) => sendOk<RunReply>('POST', '/api/health/run', { period }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.btStatus }),
   })
 }
@@ -175,7 +175,7 @@ export function useRunHealth() {
 export function useRunDemoMonth() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => postJSON<OkResult>('/api/demo/month/run'),
+    mutationFn: () => sendOk<OkResult>('POST', '/api/demo/month/run'),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.demoMonth }),
   })
 }
@@ -191,37 +191,37 @@ function useReviewMutation<V>(fn: (v: V) => Promise<OkResult>) {
   })
 }
 /** POST /api/review/run  { dry_run } */
-export const useRunReview = () => useReviewMutation((dry_run: boolean = false) => postJSON<RunReply>('/api/review/run', { dry_run }))
+export const useRunReview = () => useReviewMutation((dry_run: boolean = false) => sendOk<RunReply>('POST', '/api/review/run', { dry_run }))
 /** POST /api/review/undo */
-export const useUndoReview = () => useReviewMutation((_?: void) => postJSON<OkResult>('/api/review/undo', {}))
+export const useUndoReview = () => useReviewMutation((_?: void) => sendOk<OkResult>('POST', '/api/review/undo', {}))
 /** POST /api/review/auto  { on } */
-export const useReviewAuto = () => useReviewMutation((on: boolean) => postJSON<OkResult>('/api/review/auto', { on }))
+export const useReviewAuto = () => useReviewMutation((on: boolean) => sendOk<OkResult>('POST', '/api/review/auto', { on }))
 /** POST /api/review/vote  { agent, on } */
 export const useReviewVote = () =>
-  useReviewMutation((v: { agent: string; on: boolean }) => postJSON<OkResult>('/api/review/vote', v))
+  useReviewMutation((v: { agent: string; on: boolean }) => sendOk<OkResult>('POST', '/api/review/vote', v))
 /** POST /api/review/apply  { run_id } */
-export const useApplyReview = () => useReviewMutation((run_id: string) => postJSON<OkResult>('/api/review/apply', { run_id }))
+export const useApplyReview = () => useReviewMutation((run_id: string) => sendOk<OkResult>('POST', '/api/review/apply', { run_id }))
 
 function useJournalMutation<V, R>(fn: (v: V) => Promise<R>) {
   const qc = useQueryClient()
   return useMutation({ mutationFn: fn, onSuccess: () => qc.invalidateQueries({ queryKey: ['journal'] }) })
 }
 /** POST /api/journal/accounts */
-export const useCreateAccount = () => useJournalMutation((b: AccountBody) => postJSON<SaveReply>('/api/journal/accounts', b))
+export const useCreateAccount = () => useJournalMutation((b: AccountBody) => sendOk<SaveReply>('POST', '/api/journal/accounts', b))
 /** PUT /api/journal/accounts/:id (also used to archive / unarchive) */
 export const useUpdateAccount = () =>
-  useJournalMutation((v: { id: number; body: AccountBody }) => sendJSON<OkResult>('PUT', `/api/journal/accounts/${v.id}`, v.body))
+  useJournalMutation((v: { id: number; body: AccountBody }) => sendOk<OkResult>('PUT', `/api/journal/accounts/${v.id}`, v.body))
 /** POST /api/journal/accounts/:id/advance  { result, note, next_balance } */
 export const useAdvancePhase = () =>
-  useJournalMutation((v: { id: number; body: AdvanceBody }) => postJSON<SaveReply>(`/api/journal/accounts/${v.id}/advance`, v.body))
+  useJournalMutation((v: { id: number; body: AdvanceBody }) => sendOk<SaveReply>('POST', `/api/journal/accounts/${v.id}/advance`, v.body))
 /** POST /api/journal/accounts/:id/reopen */
 export const useReopenPhase = () =>
-  useJournalMutation((id: number) => postJSON<OkResult>(`/api/journal/accounts/${id}/reopen`))
+  useJournalMutation((id: number) => sendOk<OkResult>('POST', `/api/journal/accounts/${id}/reopen`))
 /** POST /api/journal/trades */
-export const useCreateTrade = () => useJournalMutation((b: TradeBody) => postJSON<SaveReply>('/api/journal/trades', b))
+export const useCreateTrade = () => useJournalMutation((b: TradeBody) => sendOk<SaveReply>('POST', '/api/journal/trades', b))
 /** PUT /api/journal/trades/:id */
 export const useUpdateTrade = () =>
-  useJournalMutation((v: { id: number; body: TradeBody }) => sendJSON<SaveReply>('PUT', `/api/journal/trades/${v.id}`, v.body))
+  useJournalMutation((v: { id: number; body: TradeBody }) => sendOk<SaveReply>('PUT', `/api/journal/trades/${v.id}`, v.body))
 /** DELETE /api/journal/trades/:id */
 export const useDeleteTrade = () =>
-  useJournalMutation((id: number) => sendJSON<OkResult>('DELETE', `/api/journal/trades/${id}`))
+  useJournalMutation((id: number) => sendOk<OkResult>('DELETE', `/api/journal/trades/${id}`))

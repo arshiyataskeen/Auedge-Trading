@@ -3,6 +3,8 @@ similar past releases). Display only: never votes (weight 0, votes=False), alway
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import dataclasses
 import math
 import sys
@@ -15,7 +17,7 @@ import numpy as np
 from core import news
 from core.models import MarketContext
 from core.newsintel.bars import NY
-from core.newsintel.mode import effective_mode, mode
+from core.newsintel.mode import NEWS_AGENT, effective_mode, mode
 
 from .base import BaseAgent
 
@@ -31,7 +33,18 @@ def load_artifacts(path):
     return load(path)
 
 
-ALLOW_FETCH = True                  # backtest.py sets False: replays stay offline and reproducible
+_OFFLINE: contextvars.ContextVar[bool] = contextvars.ContextVar("news_intel_offline", default=False)
+
+
+@contextlib.contextmanager
+def offline():
+    """Within this scope (and asyncio tasks started in it) the agent never starts a FRED download. backtest.analyse
+    uses it, so replays stay offline and reproducible; importing backtest changes nothing."""
+    token = _OFFLINE.set(True)
+    try:
+        yield
+    finally:
+        _OFFLINE.reset(token)
 LIVE_WINDOW_S = 900                 # a context this close to the wall clock is the live app, not a replay
 
 
@@ -102,7 +115,7 @@ def _when(t: int, now: float) -> str:
 
 
 class NewsIntelAgent(BaseAgent):
-    name, label, weight, votes = "news_intel", "News intelligence", 0, False
+    name, label, weight, votes = NEWS_AGENT, "News intelligence", 0, False
 
     async def analyze(self, ctx: MarketContext):
         if mode() == "off":
@@ -119,7 +132,7 @@ class NewsIntelAgent(BaseAgent):
                                warnings=[f"News intelligence unavailable: {why}"])
         eff = effective_mode(art)
         now = ctx.generated_at.timestamp()
-        live_now = ALLOW_FETCH and abs(time.time() - now) <= LIVE_WINDOW_S
+        live_now = not _OFFLINE.get() and abs(time.time() - now) <= LIVE_WINDOW_S
         intel = await build_intel_async(ctx, now, art, timeout=TIMEOUT_S, background=live_now)
         warnings = list(intel.notes)
         if mode() == "live" and eff != "live":

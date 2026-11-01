@@ -40,8 +40,6 @@ from core.indicators import atr
 from core.models import Candle, CandleSet, MarketContext, SpotQuote
 from core.track import HORIZON_S, MOVE_MIN
 
-_news_intel.ALLOW_FETCH = False   # replays never download (FRED): offline and reproducible
-
 ROOT = Path(__file__).resolve().parent
 CACHE = ROOT / "data" / "backtest_cache"
 REPORT = ROOT / "data" / "backtest_report.html"
@@ -207,10 +205,11 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
     else:
         stage1 = [a for a in BUILT_IN if getattr(a, "stage", 1) == 1]
         stage2 = [a for a in BUILT_IN if getattr(a, "stage", 1) == 2]
-        results = list(await asyncio.gather(*(run_agent(a, ctx) for a in stage1)))
-        ctx.prior = results
-        results += await asyncio.gather(*(run_agent(a, ctx) for a in stage2))
-        check = await run_agent(DATA_CHECK, ctx)
+        with _news_intel.offline():      # replays never download (FRED): offline and reproducible
+            results = list(await asyncio.gather(*(run_agent(a, ctx) for a in stage1)))
+            ctx.prior = results
+            results += await asyncio.gather(*(run_agent(a, ctx) for a in stage2))
+            check = await run_agent(DATA_CHECK, ctx)
         if SETTINGS.get("cache"):
             _AGENT_CACHE[key] = (results, check)
     HTF_SIDE["side"] = htf_side(results)

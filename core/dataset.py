@@ -66,7 +66,9 @@ def htf_side(results) -> str:
     return "RANGE"
 
 
-NON_VOTING = {"news_intel"}   # display-only agents: kept out of the stored steps, so the CSV export is unchanged
+from core.newsintel.mode import NEWS_AGENT  # noqa: E402 - light module
+
+NON_VOTING = {NEWS_AGENT}   # display-only agents: kept out of the stored steps, so the CSV export is unchanged
 
 
 def _row(src: str, run: str | None, t: float, price: float, results, rep) -> tuple:

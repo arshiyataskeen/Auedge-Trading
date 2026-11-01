@@ -1,8 +1,10 @@
 """Skeptic: runs after the other agents and argues against the most tempting trade idea."""
 from core.structure import highs, lows, sweep, tf_bias, untouched, zigzag
+from core.newsintel.mode import NEWS_AGENT
+
 from .base import BaseAgent
 
-NON_VOTING = {"news_intel"}   # display-only agents (votes=False) never count as a stage-1 opinion
+NON_VOTING = {NEWS_AGENT}   # display-only agents (votes=False) never count as a stage-1 opinion
 
 
 class SkepticAgent(BaseAgent):

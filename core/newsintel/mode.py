@@ -7,6 +7,7 @@ from core.env import load_env
 
 load_env()   # app.py imports the agents (which read the mode) before it loads .env
 
+NEWS_AGENT = "news_intel"   # the display-only news agent's name (kept out of votes, dataset steps, Skeptic)
 MODES = ("off", "advisory", "live")
 
 

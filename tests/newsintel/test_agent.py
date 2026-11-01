@@ -257,26 +257,56 @@ def test_historical_context_never_downloads(monkeypatch):
     assert calls == [] and live._inflight == {}
 
 
-def test_backtest_flag_blocks_download_even_for_a_current_context(monkeypatch):
+def _current_post_cpi(monkeypatch):
     _no_cache(monkeypatch)
     calls = _downloads(monkeypatch)
     now = time.time()
     ev = {"t": int(now) - 1200, "name": "CPI (inflation)", "kind": "CPI"}
     monkeypatch.setattr(ni, "artifacts", lambda: fake_art())
     monkeypatch.setattr(live.news, "events", lambda: [ev])
-    monkeypatch.setattr(ni, "ALLOW_FETCH", False)
-    _run_and_drain(ni.NewsIntelAgent(), _ctx(now))
+    return calls, now
+
+
+def test_offline_scope_blocks_download_even_for_a_current_context(monkeypatch):
+    calls, now = _current_post_cpi(monkeypatch)
+
+    async def go():
+        with ni.offline():
+            await run_agent(ni.NewsIntelAgent(), _ctx(now))
+        await asyncio.gather(*live._inflight.values(), return_exceptions=True)
+    asyncio.run(go())
     assert calls == []
-    monkeypatch.setattr(ni, "ALLOW_FETCH", True)            # the live app: one background lookup
+    _run_and_drain(ni.NewsIntelAgent(), _ctx(now))           # outside the scope: the live app's one lookup
+    assert calls == ["CPIAUCSL"]
+
+
+def test_importing_backtest_keeps_live_fetch(monkeypatch):
+    from backtest import load_data  # noqa: F401 - exactly what app.py does at startup
+    calls, now = _current_post_cpi(monkeypatch)
     _run_and_drain(ni.NewsIntelAgent(), _ctx(now))
     assert calls == ["CPIAUCSL"]
 
 
-def test_backtest_module_turns_fetch_off():
-    import backtest  # noqa: F401
-    assert ni.ALLOW_FETCH is False
-    ni.ALLOW_FETCH = True                                   # leave the module as the app expects
+def test_backtest_analyse_is_offline(monkeypatch):
+    import backtest as bt
+    calls, now = _current_post_cpi(monkeypatch)
+    monkeypatch.setattr(bt, "BUILT_IN", [ni.NewsIntelAgent()])
+    seen = []
+    real = ni.build_intel_async
 
+    async def spy(*a, **k):
+        seen.append(k.get("background"))
+        return await real(*a, **k)
+    monkeypatch.setattr(ni, "build_intel_async", spy)
+
+    async def go():
+        try:
+            await bt.analyse(_ctx(now))
+        except Exception:  # noqa: BLE001 - the Chief on an empty context is not under test here
+            pass
+        await asyncio.gather(*live._inflight.values(), return_exceptions=True)
+    asyncio.run(go())
+    assert seen == [False] and calls == []
 
 def test_import_failure_gives_ok_card(monkeypatch):
     def broken():

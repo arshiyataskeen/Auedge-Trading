@@ -147,6 +147,18 @@ def stack_fold(ds: Dataset, train: np.ndarray, test: np.ndarray, name: str, para
     If train is too short to give any OOF row, the stacker is skipped and the calibrated primary probabilities are
     returned, with a note saying so.
     """
+    st, T, note = fit_stacker(ds, train, name, param)
+    p_cal = M.apply_temperature(p_test, T)
+    if st is None:
+        return p_cal, T, note
+    return st.predict_proba(ds, test, p_cal), T, ""
+
+
+def fit_stacker(ds: Dataset, train: np.ndarray, name: str, param):
+    """Temperature and fitted Stacker learned from `train` rows only (steps 1-3 of `stack_fold`).
+
+    Returns (stacker or None, T, note); the stacker is None when train gives no out-of-fold row.
+    """
     train = np.sort(train)
     cut = int(len(train) * CALIB_SHARE)
     fit_part, cal_part = train[:cut], train[cut:]
@@ -158,12 +170,10 @@ def stack_fold(ds: Dataset, train: np.ndarray, test: np.ndarray, name: str, para
         if len(tr) and len(va):
             oof_idx.append(va)
             oof_p.append(_make(name, param).fit(ds, tr).predict_proba(ds, va))
-    p_cal = M.apply_temperature(p_test, T)
     if not oof_idx:
-        return p_cal, T, "no out-of-fold rows: stacker skipped, calibrated primary used"
+        return None, T, "no out-of-fold rows: stacker skipped, calibrated primary used"
     oof_idx, oof_p = np.concatenate(oof_idx), np.vstack(oof_p)
-    st = Stacker().fit(ds, oof_idx, M.apply_temperature(oof_p, T))
-    return st.predict_proba(ds, test, p_cal), T, ""
+    return Stacker().fit(ds, oof_idx, M.apply_temperature(oof_p, T)), T, ""
 
 
 def run(ds: Dataset, label: str = "label60", start: str = "2022-01-01") -> Results:

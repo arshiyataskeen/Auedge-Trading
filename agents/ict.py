@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from statistics import median
 from zoneinfo import ZoneInfo
 
+from core.intel import sessions
 from core.structure import highs, lows, tf_bias, zigzag
 from .base import BaseAgent
 
@@ -41,13 +42,8 @@ def killzone(t) -> str | None:
 
 
 def asian_range(m15):
-    """High/low of the latest 20:00-00:00 New York session that has finished."""
-    day0 = ny(m15[-1].t).replace(hour=0, minute=0, second=0, microsecond=0)     # it ends at midnight New York
-    a, b = (day0 - timedelta(hours=4)).timestamp(), day0.timestamp()
-    bars = [c for c in m15 if a <= c.t < b]
-    if len(bars) < 8:
-        return None
-    return max(c.h for c in bars), min(c.l for c in bars)
+    """High/low of the latest 20:00-00:00 New York session that has finished (shared sessions helper)."""
+    return sessions.asian_range(m15, m15[-1].t, "ny_evening", min_bars=8)
 
 
 class ICTAgent(BaseAgent):

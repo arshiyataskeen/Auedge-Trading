@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
 
+from .intel import sessions
 from .indicators import atr
 from .structure import confirmed, zigzag
 
@@ -95,11 +96,12 @@ def build_stop_map(ctx) -> dict:
         add(min(c.l for c in prev_week), "sell", 3.0, "previous week low", since_week)
 
     # 3) Asian session range (00:00-07:00 UTC), checked on candles after 07:00
-    asia = [c for c in since_day if c.t < day0.timestamp() + 7 * 3600]
-    if asia and now.hour >= 7:
+    # (window kept as 00:00-07:00 UTC for this caller; agents/ict.py uses 20:00-00:00 New York, see core/intel/sessions.py)
+    ar = sessions.asian_range(since_day, now_s, "utc_0_7")
+    if ar:
         after = [c for c in since_day if c.t >= day0.timestamp() + 7 * 3600]
-        add(max(c.h for c in asia), "buy", 1.5, "Asian session high", after)
-        add(min(c.l for c in asia), "sell", 1.5, "Asian session low", after)
+        add(ar[0], "buy", 1.5, "Asian session high", after)
+        add(ar[1], "sell", 1.5, "Asian session low", after)
 
     # 4) Round numbers every $50 (in SPOT terms), checked on the last 8 hours
     gap = ctx.futures_gap or 0

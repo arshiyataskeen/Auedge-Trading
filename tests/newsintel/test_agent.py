@@ -40,7 +40,7 @@ def _run(agent, ctx):
 def _with(monkeypatch, art=None, intel: Intel | None = None):
     monkeypatch.setattr(ni, "artifacts", lambda: art)
     if intel is not None:
-        async def fake(ctx, now, a, timeout=8.0):
+        async def fake(ctx, now, a, timeout=8.0, background=False):
             return intel
         monkeypatch.setattr(ni, "build_intel_async", fake)
 
@@ -206,10 +206,13 @@ def test_chief_ignores_news_intel(monkeypatch):
     assert a == b
 
 
-def test_registered_before_skeptic_unless_off():
-    from agents import BUILT_IN
-    names = [a.name for a in BUILT_IN]
-    if nmode.mode() != "off":
+@pytest.mark.parametrize("m", ["advisory", "live", "off"])
+def test_registry_for_mode(m):
+    from agents import built_in
+    names = [a.name for a in built_in(m)]
+    if m == "off":
+        assert "news_intel" not in names
+    else:
         assert names.index("news_intel") < names.index("skeptic")
 
 
@@ -217,3 +220,77 @@ def test_models_dir_matches_export():
     from core.newsintel.ml import export
     assert ni.MODELS_DIR == export.MODELS_DIR and ni.META == export.META
 
+
+
+# ---------------------------------------------------------------- fix round 1
+
+def _no_cache(monkeypatch):
+    monkeypatch.setattr(live, "_found", {})
+    monkeypatch.setattr(live, "_tried", {})
+    monkeypatch.setattr(live, "_inflight", {})
+    monkeypatch.setattr(live, "_cached_rows", lambda sid: (_ for _ in ()).throw(RuntimeError("no cache")))
+
+
+def _downloads(monkeypatch):
+    calls = []
+    monkeypatch.setattr(live.fred, "download", lambda sid: calls.append(sid) or [])
+    return calls
+
+
+def _run_and_drain(agent, ctx):
+    async def go():
+        r = await run_agent(agent, ctx)
+        await asyncio.gather(*live._inflight.values(), return_exceptions=True)
+        return r
+    return asyncio.run(go())
+
+
+def test_historical_context_never_downloads(monkeypatch):
+    """A backtest step just after a past release with no cached surprise: no FRED call, surprise unknown."""
+    _no_cache(monkeypatch)
+    calls = _downloads(monkeypatch)
+    monkeypatch.setattr(ni, "artifacts", lambda: fake_art())
+    monkeypatch.setattr(live.news, "events", lambda: [CPI_EV])
+    m = _walk(1, T + 6 * 3600)
+    r = _run_and_drain(ni.NewsIntelAgent(), ctx_from_minutes(m, T + 2700))
+    assert r.status == "OK" and r.extra["phase"] == "post" and r.extra["surprise_z"] is None
+    assert calls == [] and live._inflight == {}
+
+
+def test_backtest_flag_blocks_download_even_for_a_current_context(monkeypatch):
+    _no_cache(monkeypatch)
+    calls = _downloads(monkeypatch)
+    now = time.time()
+    ev = {"t": int(now) - 1200, "name": "CPI (inflation)", "kind": "CPI"}
+    monkeypatch.setattr(ni, "artifacts", lambda: fake_art())
+    monkeypatch.setattr(live.news, "events", lambda: [ev])
+    monkeypatch.setattr(ni, "ALLOW_FETCH", False)
+    _run_and_drain(ni.NewsIntelAgent(), _ctx(now))
+    assert calls == []
+    monkeypatch.setattr(ni, "ALLOW_FETCH", True)            # the live app: one background lookup
+    _run_and_drain(ni.NewsIntelAgent(), _ctx(now))
+    assert calls == ["CPIAUCSL"]
+
+
+def test_backtest_module_turns_fetch_off():
+    import backtest  # noqa: F401
+    assert ni.ALLOW_FETCH is False
+    ni.ALLOW_FETCH = True                                   # leave the module as the app expects
+
+
+def test_import_failure_gives_ok_card(monkeypatch):
+    def broken():
+        raise ImportError("no module named sklearn")
+    monkeypatch.setattr(ni, "_live", broken)
+    r = _run(ni.NewsIntelAgent(), _ctx())
+    assert r.status == "OK" and (r.bias, r.confidence) == ("WAIT", 0)
+    assert r.headline.startswith("News intelligence unavailable") and "sklearn" in r.headline
+
+def test_skeptic_ignores_non_voting_prior():
+    from agents.skeptic import SkepticAgent
+    ctx = ctx_from_minutes(_walk(3, T + 6 * 3600, days=200), T)
+    news = AgentResult(agent="news_intel")
+    ctx.prior = [AgentResult(agent="trend", status="ERROR"), news]
+    assert asyncio.run(SkepticAgent().analyze(ctx)).status == "INSUFFICIENT_DATA"
+    ctx.prior = [AgentResult(agent="trend", bias="BUY", confidence=60), news]
+    assert asyncio.run(SkepticAgent().analyze(ctx)).status == "OK"

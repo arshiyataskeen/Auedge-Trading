@@ -66,11 +66,14 @@ def htf_side(results) -> str:
     return "RANGE"
 
 
+NON_VOTING = {"news_intel"}   # display-only agents: kept out of the stored steps, so the CSV export is unchanged
+
+
 def _row(src: str, run: str | None, t: float, price: float, results, rep) -> tuple:
     p = rep.plan
     agents = {r.agent: {"bias": r.bias, "conf": r.confidence, "status": r.status, "label": r.bias_label,
                         "m": {k: v for k, v in (r.metrics or {}).items() if isinstance(v, (int, float, str, bool)) or v is None}}
-              for r in results}
+              for r in results if r.agent not in NON_VOTING}
     return (src, run, int(t), round(price, 2), p.action, p.kind, p.side, rep.confidence, rep.weighted_score,
             (rep.today or {}).get("trend", ""), htf_side(results), session(t), killzone(t),
             json.dumps([p.entry_lo, p.entry_hi, p.stop, p.be_at, p.t1]), json.dumps(agents))

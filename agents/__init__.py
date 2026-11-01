@@ -23,12 +23,17 @@ from .stop_hunt import StopHuntAgent
 from .trend_analyst import TrendAnalystAgent
 from .wyckoff import WyckoffAgent
 
-BUILT_IN: list[BaseAgent] = [
-    WyckoffAgent(), ElliottAgent(), SmartMoneyAgent(), PriceActionTDAgent(), TrendAnalystAgent(), SessionMacroAgent(), MarketPsychAgent(),
-    StopHuntAgent(), ICTAgent(),
-    *([NewsIntelAgent()] if _news_mode() != "off" else []),   # display only: weight 0, never votes
-    SkepticAgent(),
-]
+def built_in(news_mode: str) -> list[BaseAgent]:
+    """The built-in agents; news_intel (display only: weight 0, never votes) is left out when the mode is off."""
+    return [
+        WyckoffAgent(), ElliottAgent(), SmartMoneyAgent(), PriceActionTDAgent(), TrendAnalystAgent(), SessionMacroAgent(), MarketPsychAgent(),
+        StopHuntAgent(), ICTAgent(),
+        *([NewsIntelAgent()] if news_mode != "off" else []),
+        SkepticAgent(),
+    ]
+
+
+BUILT_IN: list[BaseAgent] = built_in(_news_mode())
 DATA_CHECK = RiskGuardAgent()
 PSYCH = PsychologyAgent()      # discipline guard: runs after the Chief, can cancel a new trade (not used by the backtest)
 

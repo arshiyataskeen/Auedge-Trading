@@ -6,6 +6,7 @@ import asyncio
 import dataclasses
 import math
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -30,10 +31,18 @@ def load_artifacts(path):
     return load(path)
 
 
-async def build_intel_async(ctx, now, art, timeout=TIMEOUT_S):
+ALLOW_FETCH = True                  # backtest.py sets False: replays stay offline and reproducible
+LIVE_WINDOW_S = 900                 # a context this close to the wall clock is the live app, not a replay
+
+
+def _live():
     # imported here: core.newsintel.features imports agents.chief, so a top-level import would be circular
-    from core.newsintel.live import build_intel_async as build
-    return await build(ctx, now, art, timeout=timeout)
+    from core.newsintel import live
+    return live
+
+
+async def build_intel_async(ctx, now, art, timeout=TIMEOUT_S, background=False):
+    return await _live().build_intel_async(ctx, now, art, timeout=timeout, background=background)
 
 
 def artifacts():
@@ -99,10 +108,19 @@ class NewsIntelAgent(BaseAgent):
         if mode() == "off":
             return self.result(ctx, status="OK", bias="WAIT", confidence=0, headline="News intelligence is off",
                                bias_label="OFF", summary="News intelligence is switched off (NEWSINTEL_MODE=off).")
-        art = await asyncio.to_thread(artifacts)   # first load unpickles the models (~2.5 s): keep the loop free
+        try:
+            _live()
+            art = await asyncio.to_thread(artifacts)   # first load unpickles the models (~2.5 s): keep the loop free
+        except Exception as e:  # noqa: BLE001 - e.g. a missing library: show it plainly instead of ERROR each run
+            why = f"{type(e).__name__}: {e}"
+            return self.result(ctx, status="OK", bias="WAIT", confidence=0,
+                               headline=f"News intelligence unavailable: {why}", bias_label="UNAVAILABLE",
+                               summary="News intelligence could not start, so there is no news context.",
+                               warnings=[f"News intelligence unavailable: {why}"])
         eff = effective_mode(art)
         now = ctx.generated_at.timestamp()
-        intel = await build_intel_async(ctx, now, art, timeout=TIMEOUT_S)
+        live_now = ALLOW_FETCH and abs(time.time() - now) <= LIVE_WINDOW_S
+        intel = await build_intel_async(ctx, now, art, timeout=TIMEOUT_S, background=live_now)
         warnings = list(intel.notes)
         if mode() == "live" and eff != "live":
             warnings.append("Live mode was requested, but the news models did not pass the go-live check, so this "

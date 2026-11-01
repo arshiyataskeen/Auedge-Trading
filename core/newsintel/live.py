@@ -565,11 +565,11 @@ def _timed_out(now: float) -> Intel:
 
 
 async def build_intel_async(ctx: MarketContext, now: float, art, timeout: float = 8.0,
-                            events: list[dict] | None = None) -> Intel:
+                            events: list[dict] | None = None, background: bool = True) -> Intel:
     """build_intel in a worker thread under `timeout`, using only the remembered / on-disk surprise. After a
     release whose surprise is still unknown it starts one background FRED lookup per release (the 10-minute
     throttle in _default_surprise applies), so a later call picks the surprise up. Never raises, never waits
-    for FRED."""
+    for FRED. background=False (backtests, historical contexts): never starts a download, cache only."""
     try:
         intel = await asyncio.wait_for(asyncio.to_thread(build_intel, ctx, now, art, "cached", events), timeout)
     except asyncio.TimeoutError:
@@ -578,7 +578,7 @@ async def build_intel_async(ctx: MarketContext, now: float, art, timeout: float 
         print(f"[newsintel] build failed: {type(e).__name__}: {e}", file=sys.stderr)
         return Intel(phase="none", notes=["News context unavailable this time."])
     ev = intel.event
-    if intel.phase == "post" and intel.surprise_z is None and ev and ev["kind"] in RELEASES:
+    if background and intel.phase == "post" and intel.surprise_z is None and ev and ev["kind"] in RELEASES:
         key = (ev["kind"], int(ev["t"]))
         task = _inflight.get(key)
         if (task is None or task.done()) and key not in _found                 and time.time() - _tried.get(key, 0.0) >= FRED_RETRY_S:

@@ -2,6 +2,8 @@
 from core.structure import highs, lows, sweep, tf_bias, untouched, zigzag
 from .base import BaseAgent
 
+NON_VOTING = {"news_intel"}   # display-only agents (votes=False) never count as a stage-1 opinion
+
 
 class SkepticAgent(BaseAgent):
     name, label, weight = "skeptic", "Skeptic", 0.75
@@ -9,7 +11,7 @@ class SkepticAgent(BaseAgent):
 
     async def analyze(self, ctx):
         d, h4, m15 = ctx.struct("1d"), ctx.struct("4h"), ctx.struct("15m")
-        prior = [r for r in ctx.prior if r.status == "OK"]
+        prior = [r for r in ctx.prior if r.status == "OK" and r.agent not in NON_VOTING]
         if not prior or any(cs is None or len(cs.candles) < 60 for cs in (d, h4, m15)):
             return self.insufficient(ctx, "Needs the other agents' results and Daily/4H/15m candles.")
         price = m15.candles[-1].c

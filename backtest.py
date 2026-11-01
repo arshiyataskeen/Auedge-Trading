@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from agents import BUILT_IN, DATA_CHECK
+from agents import news_intel as _news_intel
 from agents.base import run_agent
 from agents.chief import chief, today_view
 from core.snapshot import snap
@@ -38,6 +39,8 @@ from core.data import API, aggregate
 from core.indicators import atr
 from core.models import Candle, CandleSet, MarketContext, SpotQuote
 from core.track import HORIZON_S, MOVE_MIN
+
+_news_intel.ALLOW_FETCH = False   # replays never download (FRED): offline and reproducible
 
 ROOT = Path(__file__).resolve().parent
 CACHE = ROOT / "data" / "backtest_cache"

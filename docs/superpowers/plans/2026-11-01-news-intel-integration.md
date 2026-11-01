@@ -169,7 +169,7 @@ The user's uncommitted edits to `app.py`, `backtest.py`, `agents/__init__.py` mu
 - Variants: (A) today's rules, (B) A + news AVOID gates (advisory mode), (C) A with the ICT agent's vote off, (D) B + C.
 - Rule (spec §2 go-live bar): a variant is recommended only if R/trade is not lower and max drawdown is not higher than A, in the 6-month walk-forward windows AND on the final holdout Aug 2025 → Aug 2026, which no threshold or choice may be fitted on.
 - [ ] **Step 1: failing tests:** skipped-trade attribution on a synthetic run (a trade blocked by `volatility` appears in that gate's row with its ungated R); the holdout window is excluded from every fitted threshold (assert the export's training end < holdout start when run with `--holdout`); totals add up across windows.
-- [ ] **Step 2–4:** FAIL → implement → PASS; run the four variants in the background (long), write the report, and save the run files so they appear on the Backtest page (year → month → day → replay).
+- [ ] **Step 2–4:** FAIL → implement → PASS. Run order (user request 2026-11-01: "at least check the last one year"): **first** the four variants on the last year of the backup only (2025-08-01 → end of backup, artifacts exported `--until 2025-08-01`), write that report section and save its run files, and report it to the user straight away; **then** the all-years 6-month walk-forward runs in the background. Save every run file so it appears on the Backtest page (year → month → day → replay).
 - [ ] **Step 5:** commit the tool and tests (not the data files). Report to the user in plain words: which variant, how much better/worse, and whether it passes the rule.
 
 ### Task 7: Cards in the React app

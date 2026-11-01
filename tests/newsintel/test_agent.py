@@ -183,7 +183,9 @@ def test_cache_reloads_on_meta_mtime(monkeypatch, tmp_path):
 
 # ---------------------------------------------------------------- never influences the Chief
 
-def test_chief_ignores_news_intel(monkeypatch):
+def test_chief_ignores_news_intel(monkeypatch, tmp_path):
+    import core.votes as _v
+    monkeypatch.setattr(_v, "VOTES", tmp_path / "v.json")   # default state, never the real file
     from agents import BUILT_IN
     import core.votes as votes
     m = _walk(2, T + 6 * 3600)

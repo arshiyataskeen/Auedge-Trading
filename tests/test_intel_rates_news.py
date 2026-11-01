@@ -60,6 +60,7 @@ def test_failure_returns_none(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("no")
     monkeypatch.setattr(rates.fred, "fetch_vintages", boom)
+    monkeypatch.setattr(rates, "_latest_rows", boom)
     assert rates.snapshot(None, offline=True) is None and rates.text(None, offline=True) == ""
 
 

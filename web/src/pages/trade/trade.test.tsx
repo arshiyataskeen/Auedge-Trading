@@ -502,3 +502,9 @@ it('the source switch, timeframe, countdown and Calls sit in the same header as 
   await screen.findByTestId('fut-chart')
   expect(within(header).getByRole('group', { name: 'Timeframe' })).toBeInTheDocument()
 })
+
+it('does not crash when the analysis payload is partial', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><TradePage /></MemoryRouter></QueryClientProvider>)
+  expect(await screen.findByText(/Analysis unavailable/)).toBeInTheDocument()
+})

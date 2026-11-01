@@ -160,11 +160,11 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { routes } from '../routes'
 
 describe('routes', () => {
-  it('redirects / to the dashboard inside the shell with one main#page', async () => {
+  it('redirects / to the Trade start page inside the shell with one main#page', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
     render(<QueryClientProvider client={new QueryClient()}><RouterProvider router={createMemoryRouter(routes, { initialEntries: ['/'] })} /></QueryClientProvider>)
-    expect(await screen.findByRole('heading', { name: 'My accounts' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Trade' })).toBeInTheDocument()
     expect(document.querySelectorAll('main#page')).toHaveLength(1)
-    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Trade' })).toHaveAttribute('aria-current', 'page')
   })
 })

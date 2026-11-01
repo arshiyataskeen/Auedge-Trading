@@ -40,7 +40,8 @@ function useNextIn(updatedAt: number, nextInS: number | undefined) {
 export default function TradePage() {
   const analysis = useAnalysis()
   const refresh = useRefreshAnalysis()
-  const d = analysis.data
+  const raw = analysis.data
+  const d = raw && raw.chief && raw.data_check && Array.isArray(raw.agents) ? raw : undefined // partial payloads count as unavailable
   const nextIn = useNextIn(analysis.dataUpdatedAt, d?.next_in_s)
   const [host, setHost] = useState<HTMLElement | null>(null) // the header's middle: the chart toolbar renders there
   const [wide, setWide] = useState(false)
@@ -78,6 +79,7 @@ export default function TradePage() {
         <ChartArea analysis={d} host={host} />
         <section data-testid="trade-panel" aria-label="Analysis panel"
           className={`flex min-w-0 flex-col self-start rounded border border-line bg-panel min-[900px]:max-h-[calc(100svh-9rem)] min-[900px]:overflow-y-auto ${wide ? 'min-[900px]:hidden' : ''}`}>
+          {raw && !d ? <div role="status" className="p-3 text-[12px] text-muted">Analysis unavailable: the server sent incomplete data. It will retry automatically.</div> : (
           <QueryCard query={analysis} title="Plan">
             {(a) => (
               <>
@@ -92,7 +94,7 @@ export default function TradePage() {
                 {details && <ChiefDetails d={a} onClose={() => setDetails(false)} />}
               </>
             )}
-          </QueryCard>
+          </QueryCard>)}
         </section>
       </div>
     </div>

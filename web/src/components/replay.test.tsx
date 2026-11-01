@@ -209,3 +209,8 @@ it('unmounting while playing leaves no active timers', async () => {
   unmount()
   expect(vi.getTimerCount()).toBe(0)
 })
+
+it('the replay Entry level uses the entry colour token', () => {
+  mount(<TradeReplay trade={trade} onClose={() => {}} />)
+  expect(screen.getByText('Entry').nextElementSibling).toHaveClass('text-entry')
+})

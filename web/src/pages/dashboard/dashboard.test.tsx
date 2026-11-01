@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Demo, DemoTrade, JournalAccount, News } from '../../api/types'
 import DashboardPage from './index'
+import { Bar } from './Cards'
 
 const m = vi.hoisted(() => ({ live: { price: 2005 as number | null, updatedAt: 1, source: 'x', status: 'live', change: null } }))
 vi.mock('../../api/live', () => ({ useLivePrice: () => m.live }))
@@ -287,4 +288,9 @@ it('the today strip is a 2-column grid under 1100 px and one column on phones', 
   expect(strip.className).toMatch(/grid-cols-1/)
   expect(strip.className).toMatch(/min-\[640px\]:grid-cols-2/)
   expect(strip.className).toMatch(/min-\[1100px\]:grid-cols-\[1\.3fr_1\.3fr_0\.9fr_1fr\]/)
+})
+
+it('the room meter fill uses the entry colour token', () => {
+  const { container } = render(<Bar pct={40} cls="room" />)
+  expect(container.querySelector('span')).toHaveClass('bg-entry')
 })

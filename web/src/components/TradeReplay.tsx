@@ -89,7 +89,7 @@ export default function TradeReplay({ trade, src, lot = 0.1, lotNote, onClose }:
         <p className="text-[12px] text-muted">{t.why}</p>
         {lotNote && <p className="text-[11.5px] text-warn">{lotNote}</p>}
         <div className="my-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-          <Level k="Entry" v={price(t.entry)} sub={when(t.entry_t)} cls="text-[#5b8cff]" />
+          <Level k="Entry" v={price(t.entry)} sub={when(t.entry_t)} cls="text-entry" />
           <Level k="Stop loss" v={price(t.stop)} sub={`risk ${price(risk)} = ${d$(risk)}`} cls="text-down" />
           <Level k="Half off · 1R" v={price(be)} sub="then stop to entry" cls="text-up" />
           <Level k="Target" v={price(t.t1)} sub={`${price(Math.abs(t.t1 - t.entry))} = ${d$(t.t1 - t.entry)}`} cls="text-up" />

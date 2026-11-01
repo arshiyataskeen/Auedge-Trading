@@ -22,7 +22,7 @@ export function Bias({ kind, children }: { kind: Side; children: ReactNode }) {
   return <span className={`whitespace-nowrap rounded px-[7px] py-0.5 text-[11px] font-bold ${BIAS[kind]}`}>{children}</span>
 }
 
-const FILL = { tgt: 'bg-up', room: 'bg-[#5b8cff]', warnb: 'bg-warn' } as const
+const FILL = { tgt: 'bg-up', room: 'bg-entry', warnb: 'bg-warn' } as const
 export function Bar({ pct, cls }: { pct: number; cls: keyof typeof FILL }) {
   return (
     <div className="mt-1 h-[7px] overflow-hidden rounded bg-panel2">

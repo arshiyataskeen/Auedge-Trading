@@ -157,6 +157,21 @@ The user's uncommitted edits to `app.py`, `backtest.py`, `agents/__init__.py` mu
 - Ruling carried here: M5 confirmations are display-only chips in this plan. Feeding them to the stacker and making them entry requirements needs a harness re-run with new features — that belongs to sub-project 4's scheduled re-run (spec §7: "they become entry requirements only if they pass the same walk-forward check").
 - [ ] **Steps 1–5:** synthetic candles with a clear break up / break down / none / break-and-retest → tests FAIL → implement → PASS → commit `core/newsintel/m5.py agents/news_intel.py tests/newsintel/test_m5.py` — `feat(newsintel): m5 break and retest chips`.
 
+### Task 6b: Effect on trading, all years (added 2026-11-01 at the user's request)
+
+**Files:**
+- Create: `tools/news_effect.py` (CLI), `tests/newsintel/test_news_effect.py`
+- Output: `data/news_effect_report.html` and one Backtest-page run file per variant in `data/backtests/`
+
+**Interfaces:**
+- Consumes: `backtest.run` / `block_reason` (with Task 5 gates), the backup 1-minute data (`data/news_intel/xau_1m.npz`) and the all-years walk-forward replay outputs (quarterly `q_YYYY-MM-01.json` from the 2020Q2–2026Q3 replay), `agents/ict.py`.
+- Produces: a table per variant × 6-month window and in total: trades, win rate, total R, R/trade, max drawdown (R and $ at 0.1 lot), by year; per gate code (`calendar`, `volatility`, `uncertain`): trades skipped and the R those skipped trades would have made (from the ungated run).
+- Variants: (A) today's rules, (B) A + news AVOID gates (advisory mode), (C) A with the ICT agent's vote off, (D) B + C.
+- Rule (spec §2 go-live bar): a variant is recommended only if R/trade is not lower and max drawdown is not higher than A, in the 6-month walk-forward windows AND on the final holdout Aug 2025 → Aug 2026, which no threshold or choice may be fitted on.
+- [ ] **Step 1: failing tests:** skipped-trade attribution on a synthetic run (a trade blocked by `volatility` appears in that gate's row with its ungated R); the holdout window is excluded from every fitted threshold (assert the export's training end < holdout start when run with `--holdout`); totals add up across windows.
+- [ ] **Step 2–4:** FAIL → implement → PASS; run the four variants in the background (long), write the report, and save the run files so they appear on the Backtest page (year → month → day → replay).
+- [ ] **Step 5:** commit the tool and tests (not the data files). Report to the user in plain words: which variant, how much better/worse, and whether it passes the rule.
+
 ### Task 7: Cards in the React app
 
 Runs after UI-rebuild Tasks 8 (News) and 11 (Agents + Trade) exist.

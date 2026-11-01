@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { getJSON, sendOk } from './client'
 import { xausGet } from './xaus'
 import type {
+  SeparationRow,
   AccountBody, AdvanceBody, Analysis, BacktestInfo, BacktestStatus, BtResult, CalendarDayDetail, CalendarResp, Calls,
   Candles, Demo, DemoMonth, HealthLatest, JournalAccount, JournalAccounts, JournalTrades, News, OkResult, Review,
   RunBody, RunReply, SaveReply, TradeBody, TradeFilters, TradeReview, XausChart, XausIntraday,
@@ -248,3 +249,7 @@ export const useUpdateTrade = () =>
 /** DELETE /api/journal/trades/:id */
 export const useDeleteTrade = () =>
   useJournalMutation((id: number) => sendOk<OkResult>('DELETE', `/api/journal/trades/${id}`))
+
+/** GET /api/agents/separation: read-only signal-separation check per agent. */
+export const useSeparation = () =>
+  useQuery({ queryKey: ['agents', 'separation'] as const, queryFn: () => getJSON<SeparationRow[]>('/api/agents/separation'), staleTime: 10 * 60_000 })

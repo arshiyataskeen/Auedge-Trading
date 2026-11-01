@@ -4,6 +4,7 @@ import { price, rtext } from '../../lib/format'
 import { Bias } from '../dashboard/Cards'
 import { Card, Meta, Sect, Stat } from '../journal/ui'
 import { ConfBar } from './AgentCard'
+import SeparationCard from './SeparationCard'
 import { LABELS, cls } from './logic'
 
 const TH = 'px-1 py-1 text-left text-[10.5px] font-normal uppercase text-muted'
@@ -143,6 +144,7 @@ export default function TrackRecord({ d }: { d: Analysis }) {
           </Card>
         </>
       )}
+      <SeparationCard />
     </div>
   )
 }

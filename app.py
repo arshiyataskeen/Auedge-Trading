@@ -6,13 +6,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse, FileResponse
 
 from agents import DATA_CHECK, PSYCH, all_agents
 from agents.base import run_agent
 from agents.chief import chief, today_view
 from agents.psychology import apply_to_plan
-from core import ai_summary, auth, dataset, track, trade_review, votes, webapp, weights as aw
+from core import ai_summary, auth, dataset, track, trade_review, votes, separation_api, webapp, weights as aw
 from core.data import build_context, live_spot
 from core.env import load_env
 
@@ -135,8 +135,14 @@ app.get("/logout", include_in_schema=False)(auth.logout)
 NO_CACHE = {"Cache-Control": "no-cache"}   # the browser always checks for a newer version (a cheap 304 when unchanged)
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def index():
+    """The React app is the main screen; the previous single-page UI stays at /old."""
+    return RedirectResponse("/app/", status_code=307)   # the router's basename is /app/
+
+
+@app.get("/old", include_in_schema=False)
+def old_index():
     return FileResponse(STATIC / "index.html", headers=NO_CACHE)
 
 
@@ -146,6 +152,7 @@ APP_FILES = {"icon.svg": "image/svg+xml", "apple-touch-icon.png": "image/png", "
 
 
 app.include_router(webapp.router)   # React app at /app/* (before the catch-all below)
+app.include_router(separation_api.router)   # read-only agent signal separation (/api/agents/separation)
 
 
 @app.get("/{name}")

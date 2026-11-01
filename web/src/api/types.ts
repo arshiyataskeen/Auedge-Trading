@@ -233,3 +233,13 @@ export type AdvanceBody = { result: string; note?: string; next_balance?: number
 /* ---------- XAUS candles (the chart; GET only, from the free XAUS API) ---------- */
 export type XausIntraday = { interval_seconds?: number; source?: string; points: { t: number; p: number | null }[] }
 export type XausChart = { points: { t: number; o: number | null; h: number; l: number; c: number | null; v?: number }[] }
+
+export type SeparationDrift = {
+  recent_n: number; prior_n: number; recent_distance: number; prior_distance: number
+  recent_mean: number; prior_mean: number; diff: number; lo: number; hi: number; flag: boolean
+}
+export type SeparationRow = {
+  agent: string; n: number; mean: number | null; hit_rate: number | null
+  distance: number | null; lo: number | null; hi: number | null
+  verdict: 'useful' | 'none' | 'harmful' | 'too_few'; drift: SeparationDrift | null; source: string
+}

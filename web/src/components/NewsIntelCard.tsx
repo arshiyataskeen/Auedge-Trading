@@ -2,7 +2,15 @@ import { money, price } from '../lib/format'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Extra = Record<string, any> | undefined
-const pct = (v: unknown) => `${Math.round((Number(v) || 0) * 100)}%`
+/** Whole percents that add to exactly 100 (largest remainder). */
+function split(p: { down: number; side: number; up: number }) {
+  const k = ['down', 'side', 'up'] as const
+  const raw = k.map((x) => Math.max(0, Number(p[x]) || 0)), tot = raw.reduce((a, b) => a + b, 0) || 1
+  const sc = raw.map((v) => (100 * v) / tot), fl = sc.map(Math.floor)
+  let left = 100 - fl.reduce((a, b) => a + b, 0)
+  sc.map((v, i) => [v - fl[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left-- } })
+  return { down: fl[0], side: fl[1], up: fl[2] }
+}
 const sgn = (z: number | null | undefined) => (z == null ? '—' : `${z < 0 ? '−' : '+'}${Math.abs(z).toFixed(1)}`)
 const when = (t: number) => new Date(t * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
 const SHELL = 'rounded border border-line bg-panel p-3 text-[13px]'
@@ -21,7 +29,9 @@ export default function NewsIntelCard({ extra, compact = false, avoid = false }:
   const ev = extra.event as { name: string; t: number } | null | undefined
   const live = extra.mode === 'live'
   const p = extra.probs as { down: number; side: number; up: number } | null | undefined
-  const range = extra.expected_range as [number, number] | null | undefined
+  const rr = extra.expected_range as [number, number] | null | undefined
+  const range = Array.isArray(rr) && rr.length === 2 && rr.every((x) => Number.isFinite(x)) ? rr : null
+  const c = p ? split(p) : null
   const sim = (extra.similar ?? []) as { date?: string; t?: number; kind: string; z: number | null; move60: number }[]
   const m5 = extra.m5 as { bos?: string; retest?: string; text?: string } | undefined
   const label = extra.phase === 'post' ? 'after the release' : 'before the release'
@@ -54,13 +64,13 @@ export default function NewsIntelCard({ extra, compact = false, avoid = false }:
       {ev && p && (
         <div className="mt-2">
           <div className={LAB}>{live ? 'Chances' : 'Chances (advisory — not used for trades)'}</div>
-          <div role="img" aria-label={`down ${pct(p.down)}, flat ${pct(p.side)}, up ${pct(p.up)}`} className="mt-1 flex h-2 gap-0.5">
-            <span className="block rounded-sm bg-down" style={{ width: pct(p.down) }} />
-            <span className="block rounded-sm bg-hover" style={{ width: pct(p.side) }} />
-            <span className="block rounded-sm bg-up" style={{ width: pct(p.up) }} />
+          <div role="img" aria-label={`down ${c!.down}%, flat ${c!.side}%, up ${c!.up}%`} className="mt-1 flex h-2 gap-0.5">
+            <span className="block rounded-sm bg-down" style={{ width: `${c!.down}%` }} />
+            <span className="block rounded-sm bg-hover" style={{ width: `${c!.side}%` }} />
+            <span className="block rounded-sm bg-up" style={{ width: `${c!.up}%` }} />
           </div>
           <div className="mt-0.5 flex justify-between text-[11.5px] tabular-nums text-muted">
-            <span>down {pct(p.down)}</span><span>flat {pct(p.side)}</span><span>up {pct(p.up)}</span>
+            <span>down {c!.down}%</span><span>flat {c!.side}%</span><span>up {c!.up}%</span>
           </div>
           {extra.uncertain && <div className="text-[11.5px] text-warn">Close to even and uncertain: not a trade signal.</div>}
         </div>
@@ -78,10 +88,15 @@ export default function NewsIntelCard({ extra, compact = false, avoid = false }:
           {m5.text && <span className="rounded bg-panel2 px-1.5 py-0.5">{m5.text}</span>}
         </div>
       )}
+      {extra.m5_ratio != null && Number.isFinite(extra.m5_ratio) && (
+        <div className="mt-2 text-[11.5px] text-muted">M5 candle size vs normal: {Number(extra.m5_ratio).toFixed(1)}×</div>
+      )}
+      {compact && extra.expected_move == null && extra.notes?.length > 0 && <p className="mt-2 text-[11.5px] text-muted">{extra.notes[0]}</p>}
       {extra.note && <p className="mt-2 text-[12.5px] leading-[1.45]">{extra.note}</p>}
       {!compact && sim.length > 0 && (
-        <div className="mt-2.5 overflow-x-auto">
+        <div className="mt-2.5">
           <div className={LAB}>Similar past releases</div>
+          <div role="region" aria-label="Similar past releases" tabIndex={0} className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
           <table className="mt-1 w-full text-[12px] tabular-nums">
             <thead>
               <tr className="text-left text-muted">
@@ -100,6 +115,7 @@ export default function NewsIntelCard({ extra, compact = false, avoid = false }:
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {!compact && extra.notes?.length > 0 && (

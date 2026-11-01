@@ -50,3 +50,16 @@ it('uncertain is flagged; compact hides the table', () => {
   expect(screen.queryByTestId('similar-row')).toBeNull()
   expect(screen.getByText('Typical first-hour move')).toBeTruthy()
 })
+
+it('fix round: bad range hidden, m5_ratio shown, region focusable, compact note fallback, chances sum to 100', () => {
+  const { unmount } = render(<NewsIntelCard extra={{ ...post, expected_range: [null, 5], m5_ratio: 1.84, probs: { down: 0.333, side: 0.333, up: 0.334 } }} />)
+  expect(screen.queryByText(/range/)).toBeNull()
+  expect(screen.getByText('M5 candle size vs normal: 1.8×')).toBeTruthy()
+  const region = screen.getByRole('region', { name: 'Similar past releases' })
+  expect(region.getAttribute('tabindex')).toBe('0')
+  expect(screen.getByLabelText('down 33%, flat 33%, up 34%')).toBeTruthy()
+  unmount()
+  render(<NewsIntelCard compact extra={{ ...base, expected_move: null, notes: ['Models are stale.', 'second'] }} />)
+  expect(screen.getByText('Models are stale.')).toBeTruthy()
+  expect(screen.queryByText('second')).toBeNull()
+})

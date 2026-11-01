@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Analysis, StopPool } from '../../api/types'
 import { price } from '../../lib/format'
+import NewsIntelCard, { newsIntelProps } from '../../components/NewsIntelCard'
 import { CrowdCard } from '../agents/AgentCard'
 import { LABELS, cls } from '../agents/logic'
 import { Card, Sect } from '../journal/ui'
@@ -39,6 +40,7 @@ export default function PlanPanel({ d }: { d: Analysis }) {
         </Link>
       )}
       <CrowdCard a={crowd} />
+      <NewsIntelCard compact {...newsIntelProps(d.agents)} />
       <PsychCard psy={psy} plan={plan} genAt={d.generated_at} userStop={userStop} />
       <Card label="Timeframes">
         <Sect>Timeframes · Daily to 15m</Sect>

@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAnalysis } from '../../api/endpoints'
 import type { Analysis } from '../../api/types'
 import PageHeader from '../../components/PageHeader'
+import NewsIntelCard, { newsIntelProps } from '../../components/NewsIntelCard'
 import QueryCard from '../../components/QueryCard'
 import Tabs from '../../components/Tabs'
 import AgentGrid from './AgentCard'
@@ -40,7 +41,7 @@ export default function AgentsPage() {
           <ReviewBoard />
           <TradeReviewer />
           <QueryCard query={analysis} title="Agents">
-            {(d) => <AgentGrid d={d} />}
+            {(d) => <><div className="mb-3"><NewsIntelCard {...newsIntelProps(d.agents)} /></div><AgentGrid d={d} /></>}
           </QueryCard>
         </div>
         <div className="pt-3">

@@ -11,6 +11,8 @@ export type AgentView = {
   label?: string; weight?: number; base_weight?: number; vote_off?: boolean; perf_weight?: number
   /** Performance weighting (60 days of scored calls); null until an agent has any. */
   perf?: AgentPerf | null
+  /** news_intel only: the Intel fields plus mode. */
+  extra?: Record<string, unknown>
 }
 export type AgentLevel = { kind: string; price: number; note?: string }
 export type AgentPerf = { hits: number; n: number; hit_rate: number; shrunk: number; mult: number }

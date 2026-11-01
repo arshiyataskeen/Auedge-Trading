@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNews } from '../../api/endpoints'
+import { useAnalysis, useNews } from '../../api/endpoints'
 import type { NewsEvent } from '../../api/types'
 import PageHeader from '../../components/PageHeader'
+import NewsIntelCard, { newsIntelProps } from '../../components/NewsIntelCard'
 import QueryCard from '../../components/QueryCard'
 import { countdown } from '../../lib/time'
 
@@ -62,6 +63,12 @@ function Row({ e, now }: { e: NewsEvent; now: number }) {
   )
 }
 
+/** News intelligence from the analysis' news_intel agent. */
+function Intel() {
+  const q = useAnalysis()
+  return <QueryCard query={q} title="News intelligence">{(d) => <NewsIntelCard {...newsIntelProps(d.agents ?? [])} />}</QueryCard>
+}
+
 /** Port of the old News tab: no-trade banner, then events grouped by local day. */
 export default function NewsPage() {
   const q = useNews()
@@ -75,6 +82,7 @@ export default function NewsPage() {
           return (
             <>
               <Banner events={d.events} blocking={d.blocking} now={now} />
+              <div className="mb-3"><Intel /></div>
               <section className="rounded border border-line bg-panel p-3">
                 <h3 className="text-[12px] font-semibold text-strong">This week and coming up</h3>
                 {d.events.map((e, i) => {

@@ -192,6 +192,8 @@ async def run_analysis(use_ai: bool = True) -> dict:
     voting_off = set(votes.off())
     labels = {a.name: a.label for a in agents}
     report = chief(ctx, results, weights, check)
+    from core.newsintel.chief_hook import apply_from_results
+    apply_from_results(report, results)
     try:
         track.evaluate(ctx)          # settle earlier trades first, so the coach sees today's real results
         track.sync_journal()         # finished demo trades go into the journal ("AuEdge Demo")

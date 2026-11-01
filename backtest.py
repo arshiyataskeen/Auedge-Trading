@@ -222,6 +222,8 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
     for name in off:
         w[name] = 0
     rep = chief(ctx, results, w, check)
+    from core.newsintel.chief_hook import apply_from_results
+    apply_from_results(rep, results)
     rep.today = today_view(rep)
     if SETTINGS.get("record"):          # tools/build_dataset.py: keep every replayed step for training
         from core import dataset

@@ -374,6 +374,27 @@ it('All records is a headed table with the old columns, AuEdge chip under Side, 
   expect(within(cells[1]).getByText('Phase 1')).toBeInTheDocument()
 })
 
+it('under 640 px each trade is a two-line card with Net, openable by keyboard', async () => {
+  mockApi({ 'GET /api/journal/trades': () => ({ trades: [trade(11, { source: 'auedge' }), T2] }) })
+  mount('/journal')
+  await screen.findAllByTestId('trade-card')
+  const cards = screen.getAllByTestId('trade-card')
+  expect(cards).toHaveLength(2)
+  expect(cards[0]).toHaveTextContent('BUY')
+  expect(cards[0]).toHaveTextContent('0.1 lot')
+  expect(cards[0]).toHaveTextContent('+$100')
+  expect(cards[0]).toHaveTextContent('2,000.00 → 2,010.00 · Breakout · R:R 1:2 · +1.00R')
+  expect(cards[0]).toHaveTextContent('AuEdge')
+  expect(cards[0]).toHaveTextContent('FTMO 10k') // All records shows the account
+  expect(cards[1]).toHaveTextContent('−$50')
+  expect(cards[1]).toHaveTextContent('−0.50R')
+  // the card layout is the one shown under 640 px; the table is its sm-and-up sibling
+  expect(cards[0].parentElement!.className).toContain('sm:hidden')
+  expect(screen.getByRole('table').closest('div.hidden')!.className).toContain('sm:block')
+  fireEvent.keyDown(cards[1], { key: 'Enter' })
+  expect(await screen.findByRole('dialog', { name: 'Trade' })).toBeInTheDocument()
+})
+
 it('the account Journal tab is a headed table with Plan and Mood columns', async () => {
   mockApi()
   mount('/journal/5')

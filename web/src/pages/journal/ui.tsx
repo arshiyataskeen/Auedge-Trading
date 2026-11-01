@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import type { JournalTrade } from '../../api/types'
 import MoneyText from '../../components/MoneyText'
 import { price, rtext } from '../../lib/format'
@@ -63,8 +63,34 @@ const WIDE = 'hidden sm:table-cell'
 export function TradeTable({ trades, showAcc = false, plan = false, onOpen }: {
   trades: JournalTrade[]; showAcc?: boolean; plan?: boolean; onOpen: (t: JournalTrade) => void
 }) {
+  const key = (t: JournalTrade) => (e: KeyboardEvent) => {
+    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(t) }
+  }
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="flex flex-col sm:hidden">
+      {trades.map((t) => (
+        <div key={t.id} data-testid="trade-card" role="button" tabIndex={0} title="Open this trade" onClick={() => onOpen(t)} onKeyDown={key(t)}
+          className="cursor-pointer border-b border-line px-1 py-2 hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
+          <div className="flex items-center gap-2 text-[12px]">
+            <Bias kind={t.side}>{t.side}</Bias><b className="tabular-nums text-strong">{t.lots ?? '—'} lot</b>
+            <span className="text-muted">{jDate(t.opened_at)}</span>
+            <b className="ml-auto tabular-nums">{t.net == null ? 'open' : <MoneyText v={t.net} />}</b>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[11.5px] text-muted">
+            {showAcc && <span><b className="text-strong">{t.account}</b> · {t.phase || ''} ·</span>}
+            <span className="tabular-nums">
+              {price(t.entry)} → {t.exit != null ? price(t.exit) : '—'}
+              {t.setup ? ` · ${t.setup}` : ''}{t.planned_rr != null ? ` · R:R 1:${t.planned_rr}` : ''}{t.r != null ? ` · ${rtext(t.r)}` : ''}
+            </span>
+            {t.followed_plan === 0 && <span className="text-down">· off plan</span>}
+            {t.emotion && <span>· {t.emotion}</span>}
+            {t.source === 'auedge' && <Chip>AuEdge</Chip>}
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="hidden overflow-x-auto sm:block">
       <table className="w-full border-collapse text-[12px]">
         <thead>
           <tr className="border-b border-line">
@@ -79,7 +105,7 @@ export function TradeTable({ trades, showAcc = false, plan = false, onOpen }: {
         <tbody>
           {trades.map((t) => (
             <tr key={t.id} data-trade={t.id} tabIndex={0} title="Open this trade" onClick={() => onOpen(t)}
-              onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(t) } }}
+              onKeyDown={key(t)}
               className="cursor-pointer border-b border-line hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
               <td className={`${TD} whitespace-nowrap tabular-nums text-muted`}>{jDate(t.opened_at)}</td>
               {showAcc && <td className={TD}><b className="text-strong">{t.account}</b><div className="text-[11px] text-muted">{t.phase}</div></td>}
@@ -101,5 +127,6 @@ export function TradeTable({ trades, showAcc = false, plan = false, onOpen }: {
         </tbody>
       </table>
     </div>
+    </>
   )
 }

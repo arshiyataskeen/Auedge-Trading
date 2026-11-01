@@ -19,27 +19,50 @@ def verdict_lines(r: Results) -> list[str]:
     """The plain-words verdict: forecast check, best single news model, per kind, then volatility."""
     s, t = r.models["Stacker"]["log_loss"], r.models["TechnicalOnly"]["log_loss"]
     b = r.boot_vs_tech["Stacker"]
+    bb = r.block_vs_tech["Stacker"]
     does = "does" if r.go_live_forecast else "does not"
     lines = [f"News intelligence {does} beat the technical-only signal on {r.label}: stacker log-loss {s:.4f} vs "
-             f"technical-only {t:.4f}, difference {_ci(b)} over {r.n_test} out-of-sample release times "
+             f"technical-only {t:.4f}, difference {_ci(b)} (i.i.d. bootstrap) and "
+             f"{_ci(bb)} (fold-block bootstrap) over {r.n_test} out-of-sample release times "
              f"({r.fold_names[0]}..{r.fold_names[-1]}, {len(r.fold_names)} quarterly folds)."]
     if r.go_live_forecast:
         lines.append("Forecast go-live check PASSES (stacker better than technical-only with the 95 % CI entirely "
-                     "below 0). The trading check (R per trade, drawdown) is still to be done.")
+                     "below 0 under both the i.i.d. and the fold-block bootstrap). The trading check (R per trade, drawdown) is still to be done.")
     else:
         lines.append("Forecast go-live check FAILS: the stacker is not better than technical-only with a 95 % CI "
-                     "entirely below 0. " + RISK_ONLY)
+                     "entirely below 0 under both the i.i.d. and the fold-block bootstrap. " + RISK_ONLY)
     bn = r.best_news_model
     lines.append(f"Best single news model (chosen after the fact; not used by the stacker): {bn}, log-loss "
                  f"{r.models[bn]['log_loss']:.4f}, vs technical-only {_ci(r.boot_vs_tech[bn])}.")
     for g in r.per_kind:
         lines.append(f"  {g['group']} (n={g['n']}): stacker - technical-only {_ci(g['diff_vs_tech']['Stacker'])}"
                      f"{'  [small sample]' if g['n'] < 30 else ''}")
-    v = r.vol
-    gain = (v["mae_naive"] - v["mae_model"]) / v["mae_naive"] * 100 if v["mae_naive"] else 0.0
-    lines.append(f"Volatility: expected |move60| MAE ${v['mae_model']:.2f} vs naive ${v['mae_naive']:.2f} "
-                 f"({gain:+.1f} % {'better' if gain > 0 else 'worse'} than naive, n={v['n']}).")
+    lines.append(f"Data note: {r.n_none_features} of {r.n_rows} rows had a missing stored feature (filled with 0).")
+    lines.append(_vol_line(r.vol))
     return lines
+
+
+def _vol_line(v: dict) -> str:
+    cia = v["boot_vs_atr_only"]
+    nums = (f"model MAE ${v['mae_model']:.2f} vs ATR-only ${v['mae_atr_only']:.2f}, difference {_ci(cia)}; "
+            f"vs naive ${v['mae_naive']:.2f}, difference {_ci(v['boot_vs_naive'])}; "
+            f"vs recent-40 ${v['mae_recent40']:.2f}, difference {_ci(v['boot_vs_recent40'])}; n={v['n']}")
+    skip = f" {v['n_skipped']} test rows without a usable ATR were left out." if v["n_skipped"] else ""
+    if cia[1] <= 0 <= cia[2]:
+        return f"Volatility: the news buckets add nothing measurable over plain ATR scaling ({nums}).{skip}"
+    if cia[2] < 0:
+        return f"Volatility: the news buckets beat plain ATR scaling ({nums}).{skip}"
+    return f"Volatility: the news buckets are worse than plain ATR scaling ({nums}).{skip}"
+
+
+def _vol_html(v: dict) -> str:
+    names = [("model", "model"), ("atr_only", "ATR-only"), ("recent40", "recent-40"), ("naive", "naive")]
+    base = _table(["predictor", "MAE $", "MAE / ATR15 (normalised)", "model - predictor MAE", "95 % lo", "95 % hi"],
+                  [[lbl, v[f"mae_{k}"], v["norm_mae"][k],
+                    *(v[f"boot_vs_{k}"] if k != "model" else (None, None, None))] for k, lbl in names])
+    kinds = _table(["group", "n", "model MAE $", "ATR-only MAE $"],
+                   [[g["group"], g["n"], g["mae_model"], g["mae_atr_only"]] for g in v["per_kind"]])
+    return base + "<p>Per kind group</p>" + kinds
 
 
 def _table(head: list[str], rows: list[list]) -> str:
@@ -80,10 +103,14 @@ def render(r: Results) -> str:
                + "".join(f"<p>{html.escape(s)}</p>" for s in vl[1:-1]))
     parts = [f"<h1>News intelligence models — {html.escape(r.label)}</h1>",
              '<section class="verdict"><h2>Verdict</h2>' + verdict + "</section>",
-             "<h2>Volatility</h2><p>" + html.escape(vl[-1]) + "</p>",
+             "<h2>Volatility</h2><p>" + html.escape(vl[-1]) + "</p>" + _vol_html(r.vol)
+             + '<p class="muted">Baselines are fitted per fold on train rows only: naive = train median |move60|; '
+             "ATR-only = train median |move60|/atr15 x the row's atr15; recent-40 = median |move60| of the last 40 "
+             "train releases. Differences are model minus baseline absolute error, paired bootstrap.</p>",
              '<p class="muted">Log-loss: lower is better; uniform guess = 1.0986. Differences are model minus '
              "technical-only per release time, paired bootstrap (2,000 resamples, seed 0); negative = the model is "
-             "better.</p>"]
+             "better. Block bootstrap CIs (whole quarterly folds resampled) are shown in the first verdict line; the go-live "
+             "check needs both.</p>"]
 
     parts.append("<h2>Pooled out-of-sample metrics</h2>" + _table(
         ["model", "log-loss", "Brier", "accuracy", "n", "vs technical-only", "95 % lo", "95 % hi"],

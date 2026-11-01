@@ -142,3 +142,77 @@ def test_failed_check_recommends_risk_only(tmp_path):
     lines = report.verdict_lines(r)
     assert lines[0].startswith("News intelligence does not beat the technical-only signal")
     assert any("Recommended use: risk only (volatility expectation and AVOID gates), not direction." in s for s in lines)
+
+
+def test_go_live_requires_both_cis():
+    assert harness.go_live((-0.1, -0.2, -0.01), (-0.1, -0.3, -0.02)) is True
+    assert harness.go_live((-0.1, -0.2, -0.01), (-0.1, -0.3, 0.05)) is False
+    assert harness.go_live((-0.1, -0.2, 0.01), (-0.1, -0.3, -0.02)) is False
+
+
+def test_results_go_live_uses_both_cis(res):
+    assert res.go_live_forecast == harness.go_live(res.boot_vs_tech["Stacker"], res.block_vs_tech["Stacker"])
+    assert set(res.block_vs_tech) == set(res.boot_vs_tech)
+
+
+def test_vol_baselines_use_train_rows_only():
+    ds = synth()
+    f = harness.folds(ds.t)[1]
+    before = harness.vol_baselines(ds, f.train, f.test)
+    ds.absmove60[f.test] = ds.absmove60[f.test] * 100 + 7
+    after = harness.vol_baselines(ds, f.train, f.test)
+    assert set(before) == {"naive", "atr_only", "recent40"}
+    for k in before:
+        assert np.array_equal(before[k], after[k])
+    ds.absmove60[f.train] = ds.absmove60[f.train] + 5
+    changed = harness.vol_baselines(ds, f.train, f.test)
+    assert all(not np.array_equal(before[k], changed[k]) for k in before)
+
+
+def test_vol_baselines_recent40_is_last_forty_train_rows():
+    ds = synth()
+    f = harness.folds(ds.t)[2]
+    tr = np.sort(f.train)
+    expect = float(np.median(ds.absmove60[tr[-40:]]))
+    assert np.all(harness.vol_baselines(ds, f.train, f.test)["recent40"] == expect)
+
+
+def test_vol_section_fields_and_skips_bad_atr():
+    ds = synth()
+    ds.atr15[::50] = 0.0  # unusable ATR on some rows
+    r = harness.run(ds)
+    v = r.vol
+    assert v["n_skipped"] > 0 and v["n"] + v["n_skipped"] == r.n_test
+    for k in ("mae_model", "mae_naive", "mae_atr_only", "mae_recent40"):
+        assert np.isfinite(v[k]) and v[k] >= 0
+    for k in ("naive", "atr_only", "recent40"):
+        lo, hi = v[f"boot_vs_{k}"][1:]
+        assert lo <= hi
+    assert set(v["norm_mae"]) == {"model", "naive", "atr_only", "recent40"}
+    assert {g["group"] for g in v["per_kind"]} <= {"NFP", "CPI", "FOMC", "other"}
+    assert "left out" in report.verdict_lines(r)[-1]
+
+
+def test_verdict_says_plain_atr_scaling_when_ci_includes_zero(res):
+    import copy
+    r = copy.deepcopy(res)
+    r.vol["boot_vs_atr_only"] = (-0.1, -0.5, 0.3)
+    line = report.verdict_lines(r)[-1]
+    assert "Volatility: the news buckets add nothing measurable over plain ATR scaling (" in line
+    r.vol["boot_vs_atr_only"] = (-0.5, -0.9, -0.1)
+    assert "plain ATR scaling" in report.verdict_lines(r)[-1]
+    assert "add nothing measurable" not in report.verdict_lines(r)[-1]
+
+
+def test_verdict_and_html_show_both_cis_baselines_and_data_note(res, tmp_path):
+    lines = report.verdict_lines(res)
+    assert "i.i.d. bootstrap" in lines[0] and "fold-block bootstrap" in lines[0]
+    assert any(s.startswith("Data note:") for s in lines)
+    html = report.write(res, tmp_path / "r.html").read_text(encoding="utf-8")
+    assert "ATR-only" in html and "recent-40" in html and "missing stored feature" in html
+
+
+def test_dataset_none_feature_count_flows_to_results():
+    ds = synth()
+    ds.n_none_features = 7
+    assert harness.run(ds).n_none_features == 7

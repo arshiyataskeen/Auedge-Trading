@@ -110,3 +110,20 @@ def test_signed_move60_kept(db):
     assert ds.move60 is not None and len(ds.move60) == len(ds.t)
     assert list(ds.move60) == [2.0] * 4
     assert np.allclose(np.abs(ds.move60), ds.absmove60)
+
+
+def test_rows_with_missing_features_are_counted(tmp_path):
+    ts = [T0, T0 + DAY]
+    events = [ev("FOMC", ts[0], []), ev("NFP", ts[1], [comp("PAYEMS", 1.0)])]
+    reactions = [rea(ts[0]), rea(ts[1])]
+    feats = [fea(ts[0], trend=None), fea(ts[1])]
+    path = tmp_path / "m.db"
+    with store.connect(path) as con:
+        store.replace_all(con, events, reactions, feats, "test")
+    ds = data.load(path)
+    assert ds.n_none_features == 1
+    assert ds.X[0, ds.feature_names.index("trend_score")] == 0.0
+
+
+def test_no_missing_features_counts_zero(db):
+    assert data.load(db[0]).n_none_features == 0

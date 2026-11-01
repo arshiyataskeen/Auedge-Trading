@@ -33,6 +33,7 @@ class Dataset:
     atr15: np.ndarray
     feature_names: list[str]
     move60: np.ndarray | None = None  # signed 60-minute move (price units); absmove60 is its absolute value
+    n_none_features: int = 0  # rows where a stored feature (atr, range, trend, gap, overlap) was missing and became 0
 
 
 def _num(v) -> float:
@@ -62,6 +63,7 @@ def load(db: Path = store.DB) -> Dataset:
         by_t.setdefault(e["t"], []).append(e)
 
     t, X, y, y120, kind, absmove, atr, move = [], [], [], [], [], [], [], []
+    n_none = 0
     for r in rows:
         evs = by_t.get(r["t"])
         if not evs or any(e["kind"] not in PRIORITY for e in evs):
@@ -71,6 +73,8 @@ def load(db: Path = store.DB) -> Dataset:
         prim = min(evs, key=lambda e: PRIORITY.index(e["kind"]))
         z = prim["surprise_z"]
         core = _core_z(prim["kind"], json.loads(prim["components"] or "[]"))
+        if any(r[c] is None for c in ("f_atr15", "atr1h", "pre_range", "trend_score", "hours_since_prev", "overlap")):
+            n_none += 1
         atr15 = _num(r["f_atr15"])
         pre = _num(r["pre_range"])
         onehot = [1.0 if prim["kind"] == k else 0.0 for k in PRIORITY]
@@ -86,4 +90,4 @@ def load(db: Path = store.DB) -> Dataset:
         atr.append(_num(r["r_atr15"]))
     return Dataset(np.array(t, dtype=np.int64), np.array(X, dtype=np.float64).reshape(len(t), len(FEATURE_NAMES)),
                    np.array(y, dtype=np.int64), np.array(y120, dtype=np.int64), np.array(kind, dtype=str),
-                   np.array(absmove, dtype=np.float64), np.array(atr, dtype=np.float64), list(FEATURE_NAMES), np.array(move, dtype=np.float64))
+                   np.array(absmove, dtype=np.float64), np.array(atr, dtype=np.float64), list(FEATURE_NAMES), np.array(move, dtype=np.float64), n_none)

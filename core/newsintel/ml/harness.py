@@ -50,6 +50,8 @@ class Results:
     primary_counts: dict[str, int] = field(default_factory=dict)
     forest_kept_per_fold: list[bool] = field(default_factory=list)  # the keep rule as actually used, past folds only
     stacker_probs: list[np.ndarray] = field(default_factory=list)  # per fold, test rows in fold order
+    block_vs_tech: dict[str, tuple[float, float, float]] = field(default_factory=dict)  # same, fold-block bootstrap
+    n_none_features: int = 0  # dataset rows whose stored features had a missing value (filled with 0)
 
 
 def with_label(ds: Dataset, label: str) -> Dataset:
@@ -62,6 +64,50 @@ def with_label(ds: Dataset, label: str) -> Dataset:
     return replace(ds, t=ds.t[keep], X=ds.X[keep], y=ds.y120[keep].copy(), y120=ds.y120[keep], kind=ds.kind[keep],
                    absmove60=ds.absmove60[keep], atr15=ds.atr15[keep],
                    move60=None if ds.move60 is None else ds.move60[keep])
+
+
+RECENT_N = 40
+
+
+def go_live(boot: tuple[float, float, float], block: tuple[float, float, float]) -> bool:
+    """Go-live needs the stacker CI upper bound below 0 under BOTH the i.i.d. and the fold-block bootstrap."""
+    return bool(boot[2] < 0 and block[2] < 0)
+
+
+def vol_baselines(ds: Dataset, train: np.ndarray, test: np.ndarray) -> dict[str, np.ndarray]:
+    """Volatility baselines for one fold, each learned from `train` rows only (dollars of |move60|).
+
+    naive: train median |move60|; atr_only: train median of |move60|/atr15 x the row's atr15;
+    recent40: median |move60| of the last 40 train releases.
+    """
+    train = np.sort(np.asarray(train))
+    a = ds.atr15[train]
+    ok = np.isfinite(a) & (a > 0)
+    ratio = ds.absmove60[train][ok] / a[ok]
+    atr_ratio = float(np.median(ratio)) if ok.any() else 0.0
+    recent = train[-RECENT_N:]
+    return {"naive": np.full(len(test), float(np.median(ds.absmove60[train]))),
+            "atr_only": atr_ratio * ds.atr15[test],
+            "recent40": np.full(len(test), float(np.median(ds.absmove60[recent])))}
+
+
+def _vol_section(ds: Dataset, fs, test_idx: np.ndarray) -> dict:
+    model = np.concatenate([vol_forecast(ds, f.train, f.test) for f in fs])
+    bases = [vol_baselines(ds, f.train, f.test) for f in fs]
+    preds = {"model": model, **{k: np.concatenate([b[k] for b in bases]) for k in ("naive", "atr_only", "recent40")}}
+    actual, atr = ds.absmove60[test_idx], ds.atr15[test_idx]
+    ok = np.isfinite(atr) & (atr > 0)  # rows without a usable ATR are left out of every volatility metric
+    err = {k: np.abs(p[ok] - actual[ok]) for k, p in preds.items()}
+    out = {"n": int(ok.sum()), "n_skipped": int((~ok).sum()),
+           **{f"mae_{k}": float(e.mean()) for k, e in err.items()},
+           "norm_mae": {k: float((e / atr[ok]).mean()) for k, e in err.items()}}
+    for k in ("naive", "atr_only", "recent40"):
+        out[f"boot_vs_{k}"] = M.paired_bootstrap(err["model"], err[k])
+    kinds = np.array([_group(k) for k in ds.kind[test_idx]])[ok]
+    out["per_kind"] = [{"group": g, "n": int((kinds == g).sum()), "mae_model": float(err["model"][kinds == g].mean()),
+                        "mae_atr_only": float(err["atr_only"][kinds == g].mean())}
+                       for g in GROUPS if (kinds == g).any()]
+    return out
 
 
 def _group(kind: str) -> str:
@@ -193,22 +239,20 @@ def run(ds: Dataset, label: str = "label60", start: str = "2022-01-01") -> Resul
     after = NEWS_CANDIDATES + ["Forest"]
     best_news = min(after, key=lambda n: (models[n]["log_loss"], after.index(n)))
 
-    # Volatility: bucketed |move60|/atr15 median x atr15, against the naive train median |move60|.
-    vol_pred, vol_naive = [], []
-    for f in fs:
-        vol_pred.append(vol_forecast(ds, f.train, f.test))
-        vol_naive.append(np.full(len(f.test), float(np.median(ds.absmove60[f.train]))))
-    actual = ds.absmove60[test_idx]
-    vol = {"mae_model": M.vol_mae(np.concatenate(vol_pred), actual),
-           "mae_naive": M.vol_mae(np.concatenate(vol_naive), actual), "n": int(len(actual))}
+    # Volatility: bucketed |move60|/atr15 median x atr15, against naive / ATR-only / recent-window baselines.
+    fold_of_row = np.concatenate([np.full(len(f.test), i) for i, f in enumerate(fs)])
+    vol = _vol_section(ds, fs, test_idx)
+    block = {n: M.block_bootstrap(row_ll[n], row_ll["TechnicalOnly"], fold_of_row) for n in names
+             if n != "TechnicalOnly"}
 
     return Results(label=label, n_rows=int(len(ds.t)), n_test=int(len(y)), fold_names=[f.name for f in fs],
                    models=models, per_kind=per_kind, per_fold=per_fold, reliability=reliab, boot_vs_tech=boot,
                    forest_vs_logreg=forest_vs_logreg, forest_kept=bool(forest_kept),
                    logreg_coefs=fitted[-1]["LogReg"].coef_table(),
                    knn_examples=_knn_examples(ds, fs, fitted, test_idx), vol=vol,
-                   go_live_forecast=bool(boot["Stacker"][2] < 0), best_news_model=best_news,
-                   primary_counts=primary_counts, forest_kept_per_fold=kept_per_fold, stacker_probs=stack_p)
+                   go_live_forecast=go_live(boot["Stacker"], block["Stacker"]), best_news_model=best_news,
+                   primary_counts=primary_counts, forest_kept_per_fold=kept_per_fold, stacker_probs=stack_p,
+                   block_vs_tech=block, n_none_features=ds.n_none_features)
 
 
 def _knn_examples(ds: Dataset, fs, fitted, test_idx) -> list[dict]:

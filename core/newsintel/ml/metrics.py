@@ -55,6 +55,20 @@ def paired_bootstrap(loss_a: np.ndarray, loss_b: np.ndarray, n: int = 2000, seed
     return float(d.mean()), float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
+def block_bootstrap(loss_a: np.ndarray, loss_b: np.ndarray, groups: np.ndarray, n: int = 2000,
+                    seed: int = 0) -> tuple[float, float, float]:
+    """Like paired_bootstrap but resamples whole groups (e.g. walk-forward folds) with replacement, so regime
+    clustering widens the interval. Each resample's statistic is the mean of a-b over all rows of the drawn groups."""
+    d = np.asarray(loss_a, dtype=np.float64) - np.asarray(loss_b, dtype=np.float64)
+    _, inv = np.unique(np.asarray(groups), return_inverse=True)
+    sums = np.bincount(inv, weights=d).astype(np.float64)
+    counts = np.bincount(inv).astype(np.float64)
+    rng = np.random.default_rng(seed)
+    pick = rng.integers(0, len(sums), size=(n, len(sums)))
+    means = sums[pick].sum(axis=1) / counts[pick].sum(axis=1)
+    return float(d.mean()), float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
+
+
 def apply_temperature(p: np.ndarray, T: float) -> np.ndarray:
     """Soften (T>1) or sharpen (T<1) probabilities: softmax(log p / T)."""
     z = np.log(np.clip(np.asarray(p, dtype=np.float64), CLIP, 1.0)) / T

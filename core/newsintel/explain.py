@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from core import ai_summary
@@ -15,6 +16,9 @@ from core import ai_summary
 NOTES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "news_intel" / "notes.json"
 MAX_NOTES = 50
 _cache: dict[str, str] = {}
+_miss: dict[str, float] = {}      # note_key -> monotonic time of a notes.json miss
+MISS_TTL_S = 60.0
+MAX_WORDS = 90
 SYSTEM = (
     "You explain a gold (XAU/USD) news situation to a non-programmer trader. You receive facts about one US "
     "economic release: the event, the phase (pre = before, post = after), the actual surprise, the typical "
@@ -60,10 +64,12 @@ def cached_note(intel) -> str | None:
     key = note_key(intel)
     if key is None:
         return None
-    if key not in _cache:
+    if key not in _cache and time.monotonic() - _miss.get(key, -1e9) >= MISS_TTL_S:
         v = _load().get(key)
         if v:
             _cache[key] = v
+        else:
+            _miss[key] = time.monotonic()
     return _cache.get(key)
 
 
@@ -95,6 +101,9 @@ async def refresh_note(intel) -> None:
             return
         text = "".join(b.text for b in response.content if b.type == "text").strip()
         if not text:
+            return
+        if len(text.split()) > MAX_WORDS:
+            print(f"[news_explain] note rejected: over {MAX_WORDS} words", file=sys.stderr)
             return
         _cache[key] = text
         notes = _load()

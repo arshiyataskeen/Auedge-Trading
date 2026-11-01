@@ -55,9 +55,11 @@ def _env(monkeypatch, tmp_path):
     monkeypatch.setattr(ai_summary, "enabled", lambda: True)
     monkeypatch.setattr(explain, "NOTES_PATH", tmp_path / "notes.json")
     explain._cache.clear()
+    explain._miss.clear()
     ni._asked.clear()
     yield
     explain._cache.clear()
+    explain._miss.clear()
     ni._asked.clear()
 
 
@@ -109,7 +111,7 @@ def test_agent_one_call_per_key_and_never_awaits(monkeypatch):
     assert not any(r[0].startswith("Plain-language note") for r in rs[0].rows)   # first run: no note yet
     r4 = asyncio.run(run_agent(ni.NewsIntelAgent(), _ctx()))
     assert any(r[0].startswith("Plain-language note") and r[1] == "Plain note." for r in r4.rows)
-    assert r4.summary == "Plain note."
+    assert r4.summary != "Plain note." and "advisory" in r4.summary
     assert len(FakeClient.calls) == 1
 
 
@@ -136,3 +138,41 @@ def test_agent_survives_refresh_error(monkeypatch):
         return r
 
     assert asyncio.run(go()).status == "OK"
+
+
+def test_gate_warning_and_disclaimer_survive_with_note(monkeypatch):
+    i = intel()
+    i.event["t"] = int(time.time()) - 60            # inside the no-trade window
+    _with(monkeypatch, intel=i)
+    explain._cache[explain.note_key(i)] = "Plain note."
+    r = asyncio.run(run_agent(ni.NewsIntelAgent(), _ctx()))
+    assert "Avoid new trades" in r.summary and "advisory only" in r.summary
+    assert any(x[0] == "Plain-language note (Claude)" and x[1] == "Plain note." for x in r.rows)
+
+
+def test_overlong_note_rejected(monkeypatch, capsys):
+    async def long_create(self, **kw):
+        return types.SimpleNamespace(stop_reason="end_turn",
+                                     content=[types.SimpleNamespace(type="text", text="word " * 91)])
+    monkeypatch.setattr(FakeClient, "create", long_create)
+    i = intel()
+    asyncio.run(explain.refresh_note(i))
+    assert explain.cached_note(i) is None and not explain.NOTES_PATH.exists()
+    assert capsys.readouterr().err.count("rejected") == 1
+
+
+def test_miss_is_cached_so_two_polls_read_once(monkeypatch):
+    reads = []
+    real = explain._load
+    monkeypatch.setattr(explain, "_load", lambda: reads.append(1) or real())
+    i = intel()
+    assert explain.cached_note(i) is None and explain.cached_note(i) is None
+    assert len(reads) == 1
+
+
+def test_extra_note(monkeypatch):
+    i = intel()
+    _with(monkeypatch, intel=i)
+    assert asyncio.run(run_agent(ni.NewsIntelAgent(), _ctx())).extra["note"] is None
+    explain._cache[explain.note_key(i)] = "Plain note."
+    assert asyncio.run(run_agent(ni.NewsIntelAgent(), _ctx())).extra["note"] == "Plain note."

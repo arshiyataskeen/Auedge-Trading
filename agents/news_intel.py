@@ -192,6 +192,7 @@ class NewsIntelAgent(BaseAgent):
             rows.append(["Model trust", f"go-live: {'yes' if intel.go_live else 'no - advisory only'}; "
                                         f"uncertain: {'yes' if intel.uncertain else 'no'}"])
 
+        note = None
         if not ev:
             summary = "No major US release in the next 24 hours, so there is no news context."
             headline = "No news context"
@@ -212,13 +213,12 @@ class NewsIntelAgent(BaseAgent):
             summary = " ".join(parts)
             note = self._note(intel, live_now)
             if note:
-                summary = note
                 rows.append(["Plain-language note (Claude)", note])
         try:
-            extra = jsonable(dataclasses.asdict(intel)) | {"mode": eff}
+            extra = jsonable(dataclasses.asdict(intel)) | {"mode": eff, "note": note}
         except Exception as e:  # noqa: BLE001 - the card must still show
             print(f"[news_intel] extra not serialisable: {type(e).__name__}: {e}", file=sys.stderr)
-            extra = {"mode": eff}
+            extra = {"mode": eff, "note": note}
         return self.result(ctx, status="OK", bias="WAIT", confidence=0, headline=headline,
                            bias_label="AVOID" if gate else phase_word, subtitle=f"mode: {eff}",
                            rows=rows, summary=summary, warnings=warnings, extra=extra)

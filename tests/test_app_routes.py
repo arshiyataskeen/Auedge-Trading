@@ -42,3 +42,14 @@ def test_not_built_is_404(tmp_path, monkeypatch):
     monkeypatch.setattr(webapp, "APP_DIR", tmp_path)
     r = TestClient(app_module.app).get("/app/")
     assert r.status_code == 404 and "not built yet" in r.text
+
+
+def test_root_serves_new_app_and_old_ui_lives_at_old(client):
+    r = client.get("/")
+    assert r.status_code == 307 and r.headers["location"] == "/app/"
+    r = client.get("/app/")
+    assert r.status_code == 200 and "new app" in r.text
+    old = client.get("/old")
+    assert old.status_code == 200 and "new app" not in old.text and "AuEdge" in old.text
+    assert client.get("/journal.js").status_code == 200
+    assert client.get("/icon.svg").status_code == 200

@@ -13,12 +13,35 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); delete
 
 describe('Sidebar', () => {
   it('renders the 7 items in order and marks the current route', () => {
-    render(<MemoryRouter initialEntries={['/journal/3']}><Sidebar /></MemoryRouter>)
-    const links = screen.getAllByRole('link')
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/journal/3']}><Sidebar /></MemoryRouter></QueryClientProvider>)
+    const links = screen.getAllByRole('link').filter((l) => l.getAttribute('title') !== 'Old screen')
     expect(links.map((l) => l.textContent)).toEqual(['Dashboard', 'Trade', 'Backtest', 'Journal', 'Demo', 'News', 'Agents'])
     const cur = links.filter((l) => l.getAttribute('aria-current') === 'page')
     expect(cur).toHaveLength(1)
     expect(cur[0].textContent).toBe('Journal')
+  })
+})
+
+describe('Sidebar news badge', () => {
+  const mk = (events: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ now: 0, blocking: null, events }), { status: 200 })))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><Sidebar /></MemoryRouter></QueryClientProvider>)
+  }
+  const now = Date.now() / 1000
+  it('counts High events due within 24 h only', async () => {
+    mk([{ impact: 'High', t: now + 3600 }, { impact: 'High', t: now + 7200 }, { impact: 'High', t: now + 90000 },
+      { impact: 'Medium', t: now + 3600 }, { impact: 'High', t: now - 60 }])
+    expect(await screen.findByTestId('news-badge')).toHaveTextContent('2')
+  })
+  it('is hidden when there are none', async () => {
+    mk([{ impact: 'Medium', t: now + 3600 }])
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByTestId('news-badge')).toBeNull()
+  })
+  it('has an unobtrusive link to the old screen', () => {
+    mk([])
+    expect(screen.getByTitle('Old screen')).toHaveAttribute('href', '/old')
   })
 })
 

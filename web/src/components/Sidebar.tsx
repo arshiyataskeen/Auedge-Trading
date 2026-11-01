@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useNews } from '../api/endpoints'
 
 const ICONS: Record<string, ReactNode> = {
   dashboard: <><path d="M4 11l8-7 8 7" /><path d="M6 10v10h12V10" /></>,
@@ -23,16 +24,25 @@ export const NAV_ITEMS = [
 
 /** Left rail on desktop; fixed bottom bar under 768 px. */
 export default function Sidebar() {
+  const news = useNews()
+  const now = Date.now() / 1000   // old renderNews: High-impact events due within the next 24 h
+  const soon = (news.data?.events ?? []).filter((e) => e.impact === 'High' && e.t > now && e.t - now < 86400).length
   return (
     <nav aria-label="Main"
       className="z-20 flex shrink-0 flex-col items-stretch gap-1 border-r border-line bg-bg p-1.5 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:flex-row max-md:justify-around max-md:border-r-0 max-md:border-t md:w-[60px]">
       {NAV_ITEMS.map((it) => (
         <NavLink key={it.key} to={it.to} title={it.label}
-          className={({ isActive }) => `flex flex-col items-center gap-0.5 rounded px-1 py-1.5 text-[10px] max-md:flex-1 ${isActive ? 'bg-acc-bg text-strong' : 'text-muted hover:bg-hover hover:text-text'}`}>
+          className={({ isActive }) => `relative flex flex-col items-center gap-0.5 rounded px-1 py-1.5 text-[10px] max-md:flex-1 ${isActive ? 'bg-acc-bg text-strong' : 'text-muted hover:bg-hover hover:text-text'}`}>
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[it.key]}</svg>
           <span>{it.label}</span>
+          {it.key === 'news' && soon > 0 && (
+            <b data-testid="news-badge" aria-label={`${soon} high-impact events within 24 hours`}
+              className="absolute right-1 top-0.5 min-w-[15px] rounded-full bg-down px-1 text-center text-[9px] leading-[15px] text-white">{soon}</b>
+          )}
         </NavLink>
       ))}
+      <a href="/old" title="Old screen"
+        className="mt-auto rounded px-1 py-1 text-center text-[9px] text-muted hover:bg-hover hover:text-text max-md:mt-0 max-md:hidden">Old screen</a>
     </nav>
   )
 }

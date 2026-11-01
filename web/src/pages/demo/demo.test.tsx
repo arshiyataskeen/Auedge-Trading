@@ -38,12 +38,14 @@ const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 })
 const TZ = new Date().getTimezoneOffset()
 
 let calls: string[]
+let current: Demo = demo
 function mockApi() {
   calls = []
+  current = demo
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     calls.push(url)
     const path = url.split('?')[0]
-    if (path === '/api/demo') return json(demo)
+    if (path === '/api/demo') return json(current)
     if (path === '/api/calendar') {
       return json({ days: {
         '2026-05-30': { pnl: -40, trades: 1, nows: 1, live: true, sim: false },
@@ -131,4 +133,16 @@ it('days without data are disabled and the month arrows move the month', async (
   fireEvent.click(screen.getByLabelText('Previous month'))
   expect(screen.getByText(/May 2026/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /2026-05-30/ })).toBeEnabled()
+})
+
+it('an open replay stays on the same trade after a refetch adds a newer closed trade', async () => {
+  const { qc } = mount('/demo')
+  fireEvent.click(await screen.findByRole('button', { name: /replay.*SELL/i }))
+  const dlg = await screen.findByRole('dialog', { name: 'Trade replay' })
+  expect(within(dlg).getByText(/shifted to spot \(−\$12\.50/)).toBeInTheDocument()
+  const newer: DemoTrade = { ...closed, id: 9, ts: T0 + 100, side: 'BUY', gap: 0, entry: 2001, exit_price: 2011, usd: 10 }
+  current = { ...demo, closed: [newer, closed], trades: 2 }
+  await qc.invalidateQueries()
+  await waitFor(() => expect(screen.getAllByRole('button', { name: /replay/i })).toHaveLength(2))
+  expect(within(screen.getByRole('dialog', { name: 'Trade replay' })).getByText(/shifted to spot \(−\$12\.50/)).toBeInTheDocument()
 })

@@ -14,7 +14,7 @@ import { demoToTrade, hm, withLivePrice } from './logic'
 const when = (ts: number) =>
   new Date(ts * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-type Picked = { kind: 'open' | 'closed'; i: number }
+type Picked = { kind: 'open' | 'closed'; id: number }
 
 /** Port of the old Demo account tab (renderDemoLive + liveDemoTick). */
 export default function Account() {
@@ -35,15 +35,15 @@ export default function Account() {
         const open = view!.open, equity = view!.equity
         const nowPrice = open.length && live.price != null ? live.price : demo.price
         const since = equity - demo.start
-        const picked = pick ? (pick.kind === 'open' ? open[pick.i] : demo.closed[pick.i]) : null
+        const picked = pick ? (pick.kind === 'open' ? open : demo.closed).find((x) => x.id === pick.id) : undefined
         const trade = picked ? demoToTrade(picked) : null
         return (
           <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(340px,28%)]">
             <div className="flex min-w-0 flex-col gap-3">
-              {open.length ? open.map((t, i) => (
+              {open.length ? open.map((t) => (
                 <section key={t.id} className={card} aria-label="Open demo position">
                   <h2 className={sect}>Open demo position · {t.lot} lot</h2>
-                  <button type="button" onClick={() => setPick({ kind: 'open', i })} title="Click to see it on a chart"
+                  <button type="button" onClick={() => setPick({ kind: 'open', id: t.id })} title="Click to see it on a chart"
                     aria-label={`Open ${t.side} position, see it on a chart`} className="block w-full text-left">
                     <div className="mb-2 flex items-baseline gap-3">
                       <b className={t.side === 'BUY' ? 'text-up' : 'text-down'}>{t.side}</b>
@@ -72,8 +72,8 @@ export default function Account() {
 
               <section className={card} aria-label="Closed demo trades">
                 <h2 className={sect}>Closed demo trades · newest first · click to replay</h2>
-                {demo.closed.length ? demo.closed.map((t, i) => (
-                  <button key={t.id} type="button" onClick={() => setPick({ kind: 'closed', i })} title="Click to replay"
+                {demo.closed.length ? demo.closed.map((t) => (
+                  <button key={t.id} type="button" onClick={() => setPick({ kind: 'closed', id: t.id })} title="Click to replay"
                     aria-label={`Replay ${when(t.ts)} ${t.side} ${price(t.entry)} to ${price(t.exit_price)}`}
                     className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-b border-line py-1.5 text-left text-[12.5px] last:border-0 hover:bg-hover sm:grid-cols-[auto_auto_minmax(0,1fr)_auto]">
                     <span className="tabular-nums text-muted">{when(t.ts)}</span>

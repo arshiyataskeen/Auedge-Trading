@@ -480,3 +480,25 @@ it('sizeInfo and levelRows follow the old rules', () => {
   expect(rows.map((r) => r.price)).toEqual([...rows.map((r) => r.price)].sort((x, y) => y - x))
   expect(rows.find((r) => r.price === 4116)).toMatchObject({ kind: 'target', src: 'Chief plan', note: 'target 1' })
 })
+
+/* ---- change round 3: the chart toolbar lives in the header row ---- */
+it('the source switch, timeframe, countdown and Calls sit in the same header as the title; no second toolbar row remains', async () => {
+  mockApi()
+  mount()
+  const header = await screen.findByTestId('page-header')
+  const h = within(header)
+  expect(h.getByRole('heading', { name: 'Trade' })).toBeInTheDocument()
+  expect(h.getByRole('group', { name: 'Chart source' })).toBeInTheDocument()
+  expect(h.getByLabelText('TradingView timeframe')).toBeInTheDocument()
+  expect(h.getByTestId('cd-pill')).toBeInTheDocument()
+  expect(h.getByRole('button', { name: /^Calls/ })).toBeInTheDocument()
+  expect(h.getByText('Next analysis')).toBeInTheDocument()
+  expect(h.getByRole('button', { name: 'Refresh the analysis' })).toBeInTheDocument()
+  const area = screen.getByTestId('chart-area')
+  expect(within(area).queryByRole('group', { name: 'Chart source' })).not.toBeInTheDocument()
+  expect(within(area).queryByTestId('cd-pill')).not.toBeInTheDocument()
+  expect(within(area).getByLabelText('Zones')).toBeInTheDocument() // Zones stays reachable next to the chart
+  fireEvent.click(srcBtn(/^Futures/))
+  await screen.findByTestId('fut-chart')
+  expect(within(header).getByRole('group', { name: 'Timeframe' })).toBeInTheDocument()
+})

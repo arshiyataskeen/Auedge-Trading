@@ -42,6 +42,7 @@ export default function TradePage() {
   const refresh = useRefreshAnalysis()
   const d = analysis.data
   const nextIn = useNextIn(analysis.dataUpdatedAt, d?.next_in_s)
+  const [host, setHost] = useState<HTMLElement | null>(null) // the header's middle: the chart toolbar renders there
   const [wide, setWide] = useState(false)
   const [details, setDetails] = useState(false)
   const [tab, setTab] = useStored('trade.tab', 'plan')
@@ -71,10 +72,10 @@ export default function TradePage() {
 
   return (
     <div>
-      <PageHeader title="Trade" actions={actions}
+      <PageHeader title="Trade" actions={actions} middle={<div ref={setHost} className="contents" />}
         subtitle={refresh.isPending ? 'Running all agents…' : refresh.isError ? <span className="text-down">Refresh failed: {(refresh.error as Error).message}</span> : 'Chart and the Chief analyst plan'} />
       <div className={`grid grid-cols-1 gap-3 ${wide ? '' : 'min-[900px]:grid-cols-[minmax(0,1fr)_minmax(340px,28%)]'}`}>
-        <ChartArea analysis={d} />
+        <ChartArea analysis={d} host={host} />
         <section data-testid="trade-panel" aria-label="Analysis panel"
           className={`flex min-w-0 flex-col self-start rounded border border-line bg-panel min-[900px]:max-h-[calc(100svh-9rem)] min-[900px]:overflow-y-auto ${wide ? 'min-[900px]:hidden' : ''}`}>
           <QueryCard query={analysis} title="Plan">

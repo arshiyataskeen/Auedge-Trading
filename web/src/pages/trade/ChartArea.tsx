@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useCalls, useFuturesChart, useSpotSamples } from '../../api/endpoints'
 import { useLivePrice } from '../../api/live'
 import type { Analysis, BtTrade } from '../../api/types'
@@ -42,7 +43,8 @@ function CountdownPill({ tf, nowSec, title }: { tf: TfName; nowSec: number; titl
 }
 
 /** Chart toolbar + chart (old header controls, #wrap, foot). */
-export default function ChartArea({ analysis }: { analysis: Analysis | undefined }) {
+/** `host`: the header element the toolbar is rendered into (portal). */
+export default function ChartArea({ analysis, host }: { analysis: Analysis | undefined; host: HTMLElement | null }) {
   const theme = useTheme()
   const lp = useLivePrice()
   const [src, setSrc] = useState<Src>('tv')
@@ -135,9 +137,8 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
   }
   const gap = src === 'fut' && last && lpPrice != null ? last.close - lpPrice : null
 
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+  const toolbar = (
+      <>
         <div role="group" aria-label="Chart source" className="flex gap-0.5 rounded border border-line bg-panel p-0.5">
           {SRC.map((x) => (
             <button key={x.key} type="button" aria-pressed={src === x.key} title={x.title} onClick={() => setSource(x.key)}
@@ -181,11 +182,12 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
           {days ? `Calls ${days}d` : 'Calls'}
         </button>
         {gap != null && <span className="text-[11.5px] text-muted max-[1400px]:hidden">Futures − spot: {gap >= 0 ? '+' : ''}{price(gap)} $</span>}
-        <label className={`ml-auto flex items-center gap-1 text-[12px] text-muted ${src === 'tv' ? 'max-sm:hidden' : ''}`}
-          title="Zones can only be drawn on the Spot chart, not inside TradingView">
-          <input type="checkbox" checked={zones} onChange={(e) => setZones(e.target.checked)} className="accent-accent" /> Zones
-        </label>
-      </div>
+      </>
+  )
+
+  return (
+    <div data-testid="chart-area" className="flex min-w-0 flex-col gap-2">
+      {host && createPortal(toolbar, host)}
       <div className="relative h-[58svh] min-h-[320px] overflow-hidden rounded border border-line bg-bg min-[900px]:h-[calc(100svh-12rem)] min-[900px]:min-h-[420px]">
         <div hidden={src !== 'tv'} aria-hidden={src !== 'tv'} className="absolute inset-0"><TvChart theme={theme} /></div>
         {src !== 'tv' && (
@@ -195,12 +197,18 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
         {label && <div className="pointer-events-none absolute left-1.5 top-1.5 z-[3] max-w-[calc(100%-12px)] rounded border border-line bg-bg px-2 py-0.5 text-[11px] text-muted">{label}</div>}
         {msg && <div role={error ? 'alert' : 'status'} className="absolute inset-0 z-[4] flex items-center justify-center p-6 text-center text-[13px] text-muted">{msg}</div>}
       </div>
+      <div className="flex items-start justify-between gap-3">
       <p className="text-[11px] text-muted"
         title="All XAUS prices are indicative mid-market reference rates, not tradable broker quotes. Your broker's prices differ by the spread. The TradingView chart is TradingView's own widget (OANDA feed), a different source from the XAUS data the agents use. Times are your local time.">
         <b>Analysis only, not trading advice.</b> Indicative mid-market prices, not broker quotes · spot source {lp.source ?? '—'} via xaus.com ·{' '}
         {src === 'tv' ? 'Live ticks from TradingView (OANDA feed). Agents use XAUS data, so prices may differ by a few cents to dollars.'
           : src === 'spot' ? 'Live price checked every 15 s (it changes about once a minute)' : 'Futures candles refreshed every 60 s'}
       </p>
+        <label className="flex shrink-0 items-center gap-1 text-[12px] text-muted"
+          title="Zones can only be drawn on the Spot chart, not inside TradingView">
+          <input type="checkbox" checked={zones} onChange={(e) => setZones(e.target.checked)} className="accent-accent" /> Zones
+        </label>
+      </div>
       {replay && <TradeReplay trade={replay} lot={ASSUMED_LOT} lotNote={replay.usd == null ? `Dollar amounts use an assumed ${ASSUMED_LOT} lot (a call does not record its lot).` : undefined} onClose={() => setReplay(null)} />}
     </div>
   )

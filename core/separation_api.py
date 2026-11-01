@@ -19,7 +19,11 @@ def separation():
     hit = _cache.get("v")
     if hit and time.time() - hit[0] < TTL:
         return hit[1]
-    rows, source = load_rows()
-    res = agent_separation.separation(rows, source=source)
-    _cache["v"] = (time.time(), res)
+    try:
+        rows, source = load_rows()
+        res = agent_separation.separation(rows, source=source)
+    except Exception:       # missing dataset.db / table: show nothing, never a 500, never cache the failure
+        return []
+    if res:
+        _cache["v"] = (time.time(), res)
     return res

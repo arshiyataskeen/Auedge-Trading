@@ -62,7 +62,7 @@ def test_one_sided_agent_still_scored():
 
 def test_result_shape_and_determinism(result):
     r = result["good"]
-    assert set(r) == {"agent", "n", "mean", "hit_rate", "distance", "lo", "hi", "verdict", "drift", "source"}
+    assert set(r) == {"agent", "n", "mean", "mean_lo", "mean_hi", "hit_rate", "distance", "lo", "hi", "verdict", "drift", "source"}
     assert 0 <= r["hit_rate"] <= 100 and r["lo"] <= r["distance"] <= r["hi"]
     again = {x["agent"]: x for x in sep.separation(make_rows(), draws=200)}
     assert again["good"]["distance"] == r["distance"] and again["good"]["lo"] == r["lo"]
@@ -125,3 +125,54 @@ def test_load_rows_reads_dataset_db(tmp_path):
     rows, source = sep.load_rows(db)
     assert [(r[0], r[1], r[2]["smc"]) for r in rows] == [(1000, 3.0, "SELL"), (20000, -1.0, "BUY")]
     assert "live" in source and "backtest" in source
+
+
+def test_block_bootstrap_widens_interval_for_overlapping_windows():
+    """Moves that overlap (rolling 4-step sums, like 4h windows on hourly steps) are autocorrelated:
+    the block-bootstrap mean interval must be wider than the naive independent one."""
+    rng = np.random.default_rng(5)
+    now = 1_800_000_000
+    mv = np.convolve(rng.normal(0, 10, 1203), np.ones(4), "valid")
+    rows = [(now - (1200 - i) * 3600, float(mv[i]), {"a": "BUY"}) for i in range(1200)]
+    r = sep.separation(rows, draws=300)[0]
+    x = mv / np.std(mv)
+    naive = 2 * 1.645 * x.std() / np.sqrt(len(x))
+    assert (r["mean_hi"] - r["mean_lo"]) > 1.2 * naive
+
+
+def test_runs_helper():
+    assert sep._runs(np.array([1, 1, 0, 1, 0, 0, 1, 1, 1], bool)) == [2, 1, 3]
+
+
+def test_useful_and_harmful_need_mean_interval_off_zero(result):
+    assert result["good"]["mean_lo"] > 0
+    assert result["bad"]["mean_hi"] < 0
+
+
+def test_api_missing_db_returns_empty_and_does_not_cache(monkeypatch, tmp_path):
+    from core import separation_api
+    separation_api._cache.clear()
+    monkeypatch.setattr(separation_api, "load_rows", lambda: sep.load_rows(tmp_path / "nope.db"))
+    app = FastAPI()
+    app.include_router(separation_api.router)
+    c = TestClient(app)
+    r = c.get("/api/agents/separation")
+    assert r.status_code == 200 and r.json() == [] and "v" not in separation_api._cache
+    monkeypatch.setattr(separation_api, "load_rows", lambda: (make_rows(200), "unit"))
+    assert len(c.get("/api/agents/separation").json()) == 4
+    separation_api._cache.clear()
+
+
+def test_api_missing_table_and_empty_rows(monkeypatch, tmp_path):
+    from core import separation_api
+    separation_api._cache.clear()
+    db = tmp_path / "e.db"
+    sqlite3.connect(db).close()
+    app = FastAPI()
+    app.include_router(separation_api.router)
+    c = TestClient(app)
+    monkeypatch.setattr(separation_api, "load_rows", lambda: sep.load_rows(db))
+    assert c.get("/api/agents/separation").json() == []
+    monkeypatch.setattr(separation_api, "load_rows", lambda: ([], "none"))
+    assert c.get("/api/agents/separation").json() == []
+    assert "v" not in separation_api._cache

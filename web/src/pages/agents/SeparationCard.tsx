@@ -59,7 +59,7 @@ export function SeparationTable({ rows }: { rows: SeparationRow[] }) {
       </table>
       <Meta cls="mt-1.5">
         Distance 0 means gold moves the same after the agent's calls as at a random time; bigger means different. Average move is in units of normal 4-hour movement
-        (positive = gold went the agent's way). Calls overlap in time, so ranges are a little too tight. Analysis only: this never changes votes, weights or trades.
+        (positive = gold went the agent's way). Ranges allow for calls that overlap in time. "Behaving differently lately" uses a 95% range, so a few false flags are expected across many agents. Analysis only: this never changes votes, weights or trades.
         Source: {rows[0]?.source ?? 'none'}.
       </Meta>
     </Card>

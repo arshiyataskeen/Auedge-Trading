@@ -34,6 +34,7 @@ class AgentResult(BaseModel):
     bias_label: str = ""                  # e.g. "SELL (HTF)", "SPLIT"; defaults to bias
     rows: list[list[str]] = []            # [label, value] table rows
     summary: str = ""                    # one plain-language paragraph
+    extra: dict = {}                      # free-form display data (e.g. the news_intel card); never used for voting
 
 
 class Candle(BaseModel):

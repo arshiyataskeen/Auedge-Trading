@@ -6,10 +6,13 @@ The risk guard is not a voting agent: it is the Chief's data check (stale price,
 import importlib
 import pkgutil
 
+from core.newsintel.mode import mode as _news_mode
+
 from .base import BaseAgent
 from .elliott import ElliottAgent
 from .ict import ICTAgent
 from .market_psych import MarketPsychAgent
+from .news_intel import NewsIntelAgent
 from .price_action_td import PriceActionTDAgent
 from .psychology import PsychologyAgent
 from .risk_guard import RiskGuardAgent
@@ -23,6 +26,7 @@ from .wyckoff import WyckoffAgent
 BUILT_IN: list[BaseAgent] = [
     WyckoffAgent(), ElliottAgent(), SmartMoneyAgent(), PriceActionTDAgent(), TrendAnalystAgent(), SessionMacroAgent(), MarketPsychAgent(),
     StopHuntAgent(), ICTAgent(),
+    *([NewsIntelAgent()] if _news_mode() != "off" else []),   # display only: weight 0, never votes
     SkepticAgent(),
 ]
 DATA_CHECK = RiskGuardAgent()

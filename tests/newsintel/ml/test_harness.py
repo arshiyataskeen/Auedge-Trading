@@ -63,8 +63,39 @@ def test_logreg_beats_technical_and_go_live(res):
     assert res.boot_vs_tech["Stacker"][2] < 0
 
 
-def test_random_labels_fail_go_live():
-    assert harness.run(synth(random_labels=True, seed=3)).go_live_forecast is False
+@pytest.mark.parametrize("seed", range(5))
+def test_random_labels_fail_go_live(seed):
+    assert harness.run(synth(random_labels=True, seed=seed)).go_live_forecast is False
+
+
+def test_last_fold_labels_do_not_change_earlier_folds(res):
+    ds = synth()
+    last = harness.folds(ds.t)[-1].test
+    ds.y[last] = (ds.y[last] + 1) % 3
+    ds.y120[last] = ds.y[last]
+    other = harness.run(ds)
+    for a, b in zip(res.stacker_probs[:-1], other.stacker_probs[:-1]):
+        assert np.array_equal(a, b)
+    assert res.forest_kept_per_fold[:-1] == other.forest_kept_per_fold[:-1]
+    assert [f["primary"] for f in res.per_fold[:-1]] == [f["primary"] for f in other.per_fold[:-1]]
+
+
+def test_forest_keep_decided_from_previous_folds_only(res):
+    assert len(res.forest_kept_per_fold) == len(res.fold_names)
+    assert res.forest_kept_per_fold[:2] == [False, False]
+
+
+def test_stack_fold_without_oof_rows_falls_back():
+    ds = synth()
+    train, test = np.arange(1), np.arange(2, 6)  # one train row: inner folds give no out-of-fold rows
+    p_test = np.full((4, 3), 1 / 3)
+    p, T, note = harness.stack_fold(ds, train, test, "LogReg", 1.0, p_test)
+    assert p.shape == (4, 3) and np.allclose(p.sum(axis=1), 1.0) and note
+
+
+def test_per_fold_flags_temperature_at_grid_edge(res):
+    for f in res.per_fold:
+        assert f["T_edge"] == (f["T"] <= 0.25 + 1e-9 or f["T"] >= 4.0 - 1e-9)
 
 
 def test_per_kind_table_includes_n(res):
@@ -102,6 +133,8 @@ def test_report_has_verdict_and_every_model(res, tmp_path):
         assert name in html
     lines = report.verdict_lines(res)
     assert lines[0].startswith("News intelligence does beat the technical-only signal")
+    assert any("(chosen after the fact; not used by the stacker)" in s for s in lines)
+    assert "after the fact, not used for selection" in html
 
 
 def test_failed_check_recommends_risk_only(tmp_path):

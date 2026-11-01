@@ -30,10 +30,8 @@ def verdict_lines(r: Results) -> list[str]:
         lines.append("Forecast go-live check FAILS: the stacker is not better than technical-only with a 95 % CI "
                      "entirely below 0. " + RISK_ONLY)
     bn = r.best_news_model
-    pool = "Bayes/KNN/LogReg" + ("/Forest" if r.forest_kept else "")
-    lines.append(f"Best single news model ({pool}): {bn}, log-loss {r.models[bn]['log_loss']:.4f}, vs technical-only "
-                 f"{_ci(r.boot_vs_tech[bn])}. Random forest {'kept' if r.forest_kept else 'dropped'} "
-                 f"(Forest - LogReg {_ci(r.forest_vs_logreg)}).")
+    lines.append(f"Best single news model (chosen after the fact; not used by the stacker): {bn}, log-loss "
+                 f"{r.models[bn]['log_loss']:.4f}, vs technical-only {_ci(r.boot_vs_tech[bn])}.")
     for g in r.per_kind:
         lines.append(f"  {g['group']} (n={g['n']}): stacker - technical-only {_ci(g['diff_vs_tech']['Stacker'])}"
                      f"{'  [small sample]' if g['n'] < 30 else ''}")
@@ -102,12 +100,17 @@ def render(r: Results) -> str:
          for g in r.per_kind]))
 
     parts.append("<h2>Per fold log-loss</h2>" + _table(
-        ["fold", "n", "primary", "T"] + names,
-        [[f["fold"], f["n"], f["primary"], f["T"]] + [f["log_loss"][n] for n in names] for f in r.per_fold]))
-    parts.append(f'<p class="muted">Primary model for the stacker is chosen per fold from earlier folds only '
-                 f"(first two folds: LogReg); counts: {html.escape(str(r.primary_counts))}. Random forest "
-                 f"{'kept' if r.forest_kept else 'dropped'} as a candidate: Forest - LogReg "
-                 f"{html.escape(_ci(r.forest_vs_logreg))}.</p>")
+        ["fold", "n", "primary", "Forest kept", "T", "T at grid edge", "note"] + names,
+        [[f["fold"], f["n"], f["primary"], "yes" if f["forest_kept"] else "no", f["T"],
+          "EDGE" if f["T_edge"] else "", f["note"]] + [f["log_loss"][n] for n in names] for f in r.per_fold]))
+    parts.append(f'<p class="muted">For each fold, the Forest keep rule (Forest beats LogReg with the paired-bootstrap '
+                 f"95 % CI entirely below 0) and the stacker's primary model (lowest pooled log-loss among "
+                 f"Bayes/KNN/LogReg, plus Forest when kept) use only the out-of-sample rows of earlier folds; the first "
+                 f"two folds use LogReg and never keep Forest. Primary counts: {html.escape(str(r.primary_counts))}. "
+                 f"T is the temperature (search range 0.25-4; EDGE = the search hit its limit).</p>"
+                 f'<p class="muted">Diagnostic (after the fact, not used for selection): pooled Forest - LogReg '
+                 f"{html.escape(_ci(r.forest_vs_logreg))}; the keep rule on all folds would "
+                 f"{'keep' if r.forest_kept else 'drop'} Forest.</p>")
 
     parts.append("<h2>Reliability (10 bins on the max-probability class)</h2>")
     for n in names:

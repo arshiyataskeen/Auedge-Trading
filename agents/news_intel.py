@@ -219,6 +219,13 @@ class NewsIntelAgent(BaseAgent):
         except Exception as e:  # noqa: BLE001 - the card must still show
             print(f"[news_intel] extra not serialisable: {type(e).__name__}: {e}", file=sys.stderr)
             extra = {"mode": eff, "note": note}
+        try:
+            lv = _live()
+            from core.newsintel.m5 import m5_confirmations
+            extra["m5"] = m5_confirmations(lv._done(lv._m5_set(ctx), 300, int(now)))
+        except Exception as e:  # noqa: BLE001 - display only
+            print(f"[news_intel] m5 unavailable: {type(e).__name__}", file=sys.stderr)
+            extra["m5"] = {"bos": None, "retest": None, "text": "Not enough 5-minute candles"}
         return self.result(ctx, status="OK", bias="WAIT", confidence=0, headline=headline,
                            bias_label="AVOID" if gate else phase_word, subtitle=f"mode: {eff}",
                            rows=rows, summary=summary, warnings=warnings, extra=extra)

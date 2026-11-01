@@ -103,6 +103,7 @@ def test_timeout_and_short_candles_are_ok(monkeypatch):
     r = _run(ni.NewsIntelAgent(), _ctx(T - 3600))
     assert r.status == "OK" and r.bias == "WAIT"
     assert r.extra["phase"] == "pre" and r.extra["expected_move"] is None
+    assert r.extra["m5"] == {"bos": None, "retest": None, "text": "Not enough 5-minute candles"}
     monkeypatch.setattr(live, "build_intel", lambda *a, **k: time.sleep(0.3))
     monkeypatch.setattr(ni, "TIMEOUT_S", 0.05)
     r = _run(ni.NewsIntelAgent(), _ctx(T - 3600))

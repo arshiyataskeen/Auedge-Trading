@@ -325,3 +325,28 @@ def test_skeptic_ignores_non_voting_prior():
     assert asyncio.run(SkepticAgent().analyze(ctx)).status == "INSUFFICIENT_DATA"
     ctx.prior = [AgentResult(agent="trend", bias="BUY", confidence=60), news]
     assert asyncio.run(SkepticAgent().analyze(ctx)).status == "OK"
+
+
+def test_m5_uses_only_candles_finished_before_generated_at(monkeypatch):
+    from core.models import Candle, CandleSet
+    from core.newsintel import m5 as m5mod
+    seen = {}
+    monkeypatch.setattr(m5mod, "m5_confirmations", lambda cs: seen.setdefault("t", [c.t for c in cs]) and
+                        {"bos": None, "retest": None, "text": "x"})
+    monkeypatch.setattr(ni, "artifacts", lambda: fake_art())
+    monkeypatch.setattr(live.news, "events", lambda: [])
+    now = 1_700_000_000
+    cut = now - now % 300
+    cs = [Candle(t=cut - 300 * k, o=1, h=2, l=0, c=1) for k in range(6, 0, -1)]   # last one ends exactly at cut
+    cs += [Candle(t=cut, o=1, h=2, l=0, c=1), Candle(t=cut + 300, o=1, h=2, l=0, c=1)]  # forming + future
+    ctx = _ctx(cut)
+    ctx.candles["fut_5m"] = CandleSet(key="fut_5m", timeframe="5m", kind="futures", source_label="t",
+                                      candles=cs, last_is_forming=True)
+    _run(ni.NewsIntelAgent(), ctx)
+    assert seen["t"] == [c.t for c in cs[:6]]
+    # candle at generated_at is dropped even when not flagged forming
+    seen.clear()
+    ctx.candles["fut_5m"].last_is_forming = False
+    ctx.candles["fut_5m"].candles = cs[:7]
+    _run(ni.NewsIntelAgent(), ctx)
+    assert seen["t"] == [c.t for c in cs[:6]]

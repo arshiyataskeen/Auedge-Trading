@@ -53,3 +53,21 @@ def test_too_few_candles():
     r = m5_confirmations(mk([(99, 101, 100)] * 10))
     assert r == {"bos": None, "retest": None, "text": "Not enough 5-minute candles"}
     assert m5_confirmations([])["bos"] is None
+
+
+def test_touch_but_close_on_wrong_side_is_no_retest():
+    r = m5_confirmations(mk(base() + [(104, 112, 111.5), (109, 112, 109.5)]))
+    assert r["bos"] == "up" and r["retest"] is None
+
+
+def test_boundary_five_bars_after_break_counts_six_does_not():
+    flat = (111, 112.5, 111.8)
+    assert m5_confirmations(mk(base() + [(104, 112, 111.5)] + [flat] * 5))["bos"] == "up"
+    assert m5_confirmations(mk(base() + [(104, 112, 111.5)] + [flat] * 6))["bos"] is None
+
+
+def test_retest_then_close_back_through_is_not_holding():
+    c = mk(base() + [(104, 112, 111.5), (109.9, 112, 111.2), (105, 111, 106)])
+    r = m5_confirmations(c)
+    assert r["bos"] == "up" and r["retest"] is None
+    assert "holding" not in r["text"] and "back through" in r["text"]

@@ -7,7 +7,7 @@ import { routes } from './routes.tsx'
 
 try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light' } catch { /* storage blocked */ }
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1, refetchOnWindowFocus: false } } })
 const router = createBrowserRouter(routes, { basename: '/app' })
 
 createRoot(document.getElementById('root')!).render(

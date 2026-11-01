@@ -90,6 +90,10 @@ def describe(ctx: MarketContext, info: dict) -> str:
     return " ".join(parts) or "Not enough swings yet."
 
 
+def confidence_word(c: int) -> str:
+    return "High" if c >= 70 else "Medium" if c >= 50 else "Low"
+
+
 def word_for(score: float) -> str:
     return "BUY" if score >= 0.4 else "BUY lean" if score >= BIAS_NEED else \
         "SELL" if score <= -0.4 else "SELL lean" if score <= -BIAS_NEED else "RANGE"
@@ -183,7 +187,7 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
 
     conf = 35 + abs(total) * 45 + (10 if trigger else 0) + (10 if agents_agree else -10)
     rep.confidence = max(0, min(MAX_CONFIDENCE, int(conf)))
-    rep.confidence_word = "High" if rep.confidence >= 70 else "Medium" if rep.confidence >= 50 else "Low"
+    rep.confidence_word = confidence_word(rep.confidence)
 
     if direction == 0:
         rep.bias, rep.intraday_label = "WAIT", "NO TRADE"

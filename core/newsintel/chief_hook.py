@@ -3,7 +3,7 @@ models passed the go-live check): may also lower confidence, turn a weak call in
 Never creates a trade."""
 from __future__ import annotations
 
-from agents.chief import MAX_CONFIDENCE, TradePlan
+from agents.chief import MAX_CONFIDENCE, TradePlan, confidence_word
 from core.newsintel.mode import NEWS_AGENT, mode
 
 WEAK_P = 0.40
@@ -12,8 +12,7 @@ BOOST = 5
 UNCERTAIN_PENALTY = 10
 
 
-def _word(c: int) -> str:   # same thresholds as agents/chief.py
-    return "High" if c >= 70 else "Medium" if c >= 50 else "Low"
+_word = confidence_word   # the Chief's own thresholds
 
 
 def _line(ex: dict, label: str) -> str | None:

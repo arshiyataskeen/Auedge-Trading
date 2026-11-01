@@ -176,6 +176,15 @@ def weekly_multipliers() -> tuple[int, dict]:
     return wk, _weights["mult"]
 
 
+def _apply_news_hook(report, results) -> None:
+    """News view on the Chief's report; any failure (even the import) leaves the report untouched."""
+    try:
+        from core.newsintel.chief_hook import apply_from_results
+        apply_from_results(report, results)
+    except Exception as e:  # noqa: BLE001
+        print(f"[news_intel] chief hook skipped: {type(e).__name__}: {e}")
+
+
 async def run_analysis(use_ai: bool = True) -> dict:
     ctx = await build_context("15m")
     agents, adapter_problems = all_agents()
@@ -192,8 +201,7 @@ async def run_analysis(use_ai: bool = True) -> dict:
     voting_off = set(votes.off())
     labels = {a.name: a.label for a in agents}
     report = chief(ctx, results, weights, check)
-    from core.newsintel.chief_hook import apply_from_results
-    apply_from_results(report, results)
+    _apply_news_hook(report, results)
     try:
         track.evaluate(ctx)          # settle earlier trades first, so the coach sees today's real results
         track.sync_journal()         # finished demo trades go into the journal ("AuEdge Demo")

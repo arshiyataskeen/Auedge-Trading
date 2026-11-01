@@ -560,6 +560,11 @@ def build_intel(ctx: MarketContext, now: float, art, fetch=True, events: list[di
 _inflight: dict[tuple[str, int], asyncio.Task] = {}
 
 
+def _prune_inflight() -> None:
+    for k in [k for k, t in _inflight.items() if t.done()]:
+        del _inflight[k]
+
+
 def _timed_out(now: float) -> Intel:
     return Intel(phase="none", notes=["News context took too long to build; skipped this time."])
 
@@ -582,6 +587,7 @@ async def build_intel_async(ctx: MarketContext, now: float, art, timeout: float 
         key = (ev["kind"], int(ev["t"]))
         task = _inflight.get(key)
         if (task is None or task.done()) and key not in _found                 and time.time() - _tried.get(key, 0.0) >= FRED_RETRY_S:
+            _prune_inflight()
             _inflight[key] = asyncio.create_task(_background_surprise(*key))
     return intel
 

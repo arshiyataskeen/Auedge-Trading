@@ -8,6 +8,7 @@ import contextvars
 import dataclasses
 import math
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +29,7 @@ META = "meta.json"
 CHANCES = "Chances (advisory, not used for trades)"
 _tasks: set = set()                # strong references to background note tasks
 _asked: set = set()                # note_keys already requested this run
+_cache_lock = threading.Lock()   # one reload at a time (threads from asyncio.to_thread)
 _cache: dict = {}                   # {"mtime": float, "art": Artifacts | None}
 
 
@@ -69,8 +71,10 @@ def artifacts():
         _cache.clear()
         return None
     if _cache.get("mtime") != mtime:
-        art = load_artifacts(MODELS_DIR)
-        _cache.update(mtime=mtime, art=art)
+        with _cache_lock:
+            if _cache.get("mtime") != mtime:
+                art = load_artifacts(MODELS_DIR)
+                _cache.update(mtime=mtime, art=art)
     return _cache.get("art")
 
 

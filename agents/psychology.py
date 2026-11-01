@@ -72,8 +72,8 @@ def assess(stats: dict, now_utc, m15: list, h1: list, m5: list | None = None, sp
     if (m5 is not None or spread is not None or intel is not None) and _gates_on():
         from core.newsintel import gates
         if art is None:
-            from agents.news_intel import artifacts
-            art = artifacts()
+            from agents import news_intel
+            art = news_intel.artifacts()
         g = gates.avoid(now_s, m5, spread, spread_median, intel, art)
         if g and not (g[0] == "calendar" and ev):
             blocks.append(f"News gate ({g[0]}): {g[1]}")
@@ -102,6 +102,13 @@ def assess(stats: dict, now_utc, m15: list, h1: list, m5: list | None = None, sp
     return {"blocks": blocks, "warns": warns, "chase": chase, "rows": rows, "score": score}
 
 
+async def _load_artifacts_async():
+    """The news models, loaded in a worker thread (a first load or a reload after re-export unpickles for ~2.5 s)."""
+    import asyncio
+    from agents import news_intel
+    return await asyncio.to_thread(news_intel.artifacts)
+
+
 class PsychologyAgent(BaseAgent):
     name, label, weight, votes = "psychology", "Discipline coach", 0, False
 
@@ -116,8 +123,14 @@ class PsychologyAgent(BaseAgent):
             m5 = None
         from core.newsintel.mode import NEWS_AGENT
         intel = next((r.extra for r in (ctx.prior or []) if r.agent == NEWS_AGENT), None) or None
+        art = None
+        if _gates_on():
+            try:
+                art = await _load_artifacts_async()
+            except Exception:  # noqa: BLE001 - the gate is optional; the other rules still run
+                art = None
         a = assess(stats, ctx.generated_at.astimezone(timezone.utc), m15.candles if m15 else [], h1.candles if h1 else [],
-                   m5=m5, intel=intel)
+                   m5=m5, intel=intel, art=art)
         if a["blocks"]:
             label, head = "STOP", a["blocks"][0]
         elif a["warns"]:

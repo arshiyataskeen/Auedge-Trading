@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import html
 import json
+import os
 import time
 from bisect import bisect_left
 from datetime import datetime, timedelta, timezone
@@ -392,6 +393,35 @@ def quality_block(T: int, rep) -> str | None:
     return None
 
 
+def _load_models(path):
+    from core.newsintel.ml.export import load_artifacts
+    return load_artifacts(Path(path))
+
+
+_BT_MODELS: dict = {}
+
+
+def _bt_artifacts():
+    """News models for replays. NEWSINTEL_BT_MODELS (a dir exported with `ml --export --until DATE --out DIR`) avoids
+    look-ahead; otherwise the live export is used (its thresholds were fitted through its trained_through date)."""
+    p = os.environ.get("NEWSINTEL_BT_MODELS")
+    if not p:
+        return _news_intel.artifacts()
+    if p not in _BT_MODELS:
+        _BT_MODELS[p] = _load_models(p)
+    return _BT_MODELS[p]
+
+
+def news_models_info(start_t: int) -> dict:
+    """Which news models a replay used and whether the replay start lies inside their training period."""
+    try:
+        tt = getattr(_bt_artifacts(), "trained_through", None)
+    except Exception:  # noqa: BLE001
+        tt = None
+    start = datetime.fromtimestamp(int(start_t), timezone.utc).strftime("%Y-%m-%d")
+    return {"news_models_trained_through": tt, "news_in_sample": bool(tt) and start <= tt}
+
+
 def _news_mode() -> str:
     from core.newsintel.mode import mode
     return mode()
@@ -435,7 +465,7 @@ def block_reason(T: int, opened: dict, day_pnl: dict | None = None, risk_usd: fl
         if news.blackout(T):
             return "news"
         if _news_mode() != "off":
-            g = gates.avoid(T, _m5_of(ctx, T), None, None, intel, _news_intel.artifacts())
+            g = gates.avoid(T, _m5_of(ctx, T), None, None, intel, _bt_artifacts())
             if g:
                 return "news_" + g[0]
     if live is not None and SETTINGS.get("live_rules", True):
@@ -1027,7 +1057,8 @@ async def web_run(start_t: int, end_t: int, step: str, spread: float, progress_f
     keep = ("side", "kind", "decided_t", "entry_t", "entry", "stop", "t1", "exit_t", "exit", "why", "r", "conf",
             "usd", "balance")
     out_steps = steps if step == "15m" else []
-    return {"steps": out_steps, "params": {"start": start_t, "end": end_t, "step": step, "spread": spread, **SETTINGS},
+    return {"steps": out_steps, "params": {"start": start_t, "end": end_t, "step": step, "spread": spread, **SETTINGS,
+                          **news_models_info(start_t)},
             "summary": s, "usd": usd, "groups": groups, "agents": agents, "lines": lines, "counts": counts,
             "equity": curve, "trades": [{k: t.get(k) for k in keep} for t in trades], "made_at": time.time()}
 
@@ -1138,7 +1169,8 @@ async def health_check(start_t: int, end_t: int, step: str, spread: float, progr
     return {"kind": "health", "made_at": time.time(), "variants": out, "votes_off": votes.off(),
             "params": {"start": start_t, "end": end_t, "step": step, "spread": spread, "first_t": first_t,
                        "last_t": last_t, "mid": mid0, "account": SETTINGS["account"], "lot": SETTINGS["lot"],
-                       "day_max_loss": SETTINGS["day_max_loss"], "day_max_profit": SETTINGS["day_max_profit"]}}
+                       "day_max_loss": SETTINGS["day_max_loss"], "day_max_profit": SETTINGS["day_max_profit"],
+                       **news_models_info(start_t)}}
 
 
 # ---------------------------------------------------------------- review board

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { getJSON } from './client'
-import { useRunBacktest, useCreateTrade, useUpdateTrade, useBacktestStatus, useRunReview } from './endpoints'
+import { useRunBacktest, useCreateTrade, useUpdateTrade, useBacktestStatus, useRunReview, useReviewVote, useRefreshAnalysis, qk } from './endpoints'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status })
@@ -89,4 +89,30 @@ it('non-2xx includes the server detail/error text; bad JSON becomes ApiError', a
   await expect(getJSON('/a')).rejects.toMatchObject({ status: 422, message: 'HTTP 422: nope' })
   await expect(getJSON('/a')).rejects.toMatchObject({ status: 500, message: 'HTTP 500: bad' })
   await expect(getJSON('/a')).rejects.toMatchObject({ name: 'ApiError', message: 'Invalid response from server' })
+})
+
+it('review mutations invalidate the review list but not the analysis (the page refreshes it explicitly)', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ ok: true })))
+  const { spy, wrapper } = setup()
+  const { result } = renderHook(() => useReviewVote(), { wrapper })
+  act(() => { result.current.mutate({ agent: 'ict', on: false }) })
+  await waitFor(() => expect(result.current.isSuccess).toBe(true))
+  const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey))
+  expect(keys).toContain(JSON.stringify(qk.review))
+  expect(keys).not.toContain(JSON.stringify(qk.analysis))
+})
+
+it('refresh=true wins over a plain analysis GET that lands after it', async () => {
+  let releasePlain: (r: Response) => void = () => {}
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('refresh=true')
+    ? Promise.resolve(json({ v: 'fresh' }))
+    : new Promise<Response>((res) => { releasePlain = res })))
+  const { qc, wrapper } = setup()
+  qc.setQueryData(qk.analysis, { v: 'old' })
+  const plain = qc.fetchQuery({ queryKey: qk.analysis, queryFn: () => getJSON('/api/analysis'), staleTime: 0 }).catch(() => null)
+  const { result } = renderHook(() => useRefreshAnalysis(), { wrapper })
+  await act(async () => { await result.current.mutateAsync() })
+  releasePlain(json({ v: 'stale' }))
+  await plain
+  expect(qc.getQueryData(qk.analysis)).toEqual({ v: 'fresh' })
 })

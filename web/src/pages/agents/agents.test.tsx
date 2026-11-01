@@ -129,8 +129,11 @@ it('a vote is followed by GET /api/analysis?refresh=true; a run or auto toggle i
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   mount()
   await screen.findByRole('group', { name: 'Agent votes' })
+  const plain = () => calls.filter((c) => c.url === '/api/analysis').length
+  const before = plain()
   fireEvent.click(chip(/Wyckoff/))
   await waitFor(() => expect(calls.some((c) => c.url === '/api/analysis?refresh=true' && c.method === 'GET')).toBe(true))
+  expect(plain()).toBe(before) // no cached plain GET that could land after the refresh
   const n = calls.filter((c) => c.url === '/api/analysis?refresh=true').length
   fireEvent.click(screen.getByRole('button', { name: /Run review now/ }))
   await waitFor(() => expect(posts().some((p) => p.url === '/api/review/run')).toBe(true))

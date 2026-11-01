@@ -148,8 +148,14 @@ export const useJournalTrades = (filters: TradeFilters = {}) =>
 export function useRefreshAnalysis() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => getJSON<Analysis>('/api/analysis?refresh=true'),
-    onSuccess: (d) => qc.setQueryData(qk.analysis, d),
+    mutationFn: async () => {
+      await qc.cancelQueries({ queryKey: qk.analysis }) // a plain (cached) GET already in flight must not land after the refresh
+      return getJSON<Analysis>('/api/analysis?refresh=true')
+    },
+    onSuccess: async (d) => {
+      await qc.cancelQueries({ queryKey: qk.analysis })
+      qc.setQueryData(qk.analysis, d)
+    },
   })
 }
 
@@ -184,10 +190,9 @@ function useReviewMutation<V>(fn: (v: V) => Promise<OkResult>) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.review })
-      qc.invalidateQueries({ queryKey: qk.analysis })
-    },
+    // The analysis is not invalidated here: a plain GET returns the server's cached report and could overwrite a
+    // fresh one. Callers that change live weights call useRefreshAnalysis() (GET ?refresh=true) instead.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.review }) },
   })
 }
 /** POST /api/review/run  { dry_run } */

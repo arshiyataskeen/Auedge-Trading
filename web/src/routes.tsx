@@ -14,7 +14,7 @@ export const routes: RouteObject[] = [{
   path: '/',
   element: <AppShell />,
   children: [
-    { index: true, element: <Navigate to="/dashboard" replace /> },
+    { index: true, element: <Navigate to="/trade" replace /> },
     { path: 'dashboard', element: <DashboardPage /> },
     { path: 'trade', element: <TradePage /> },
     { path: 'backtest', element: <BacktestPage /> },

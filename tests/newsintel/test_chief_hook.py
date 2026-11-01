@@ -105,3 +105,14 @@ def test_live_never_creates_trade():
     r = _rep("WAIT", conf=40, kind="none")
     apply_news(r, _news("live", up=0.9, down=0.0))
     assert r.plan.kind == "none" and r.bias == "WAIT" and r.confidence == 40
+
+
+def test_early_return_fills_quality():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_live import T, _walk, ctx_from_minutes
+    from agents.chief import chief
+    ctx = ctx_from_minutes(_walk(2, T + 6 * 3600), T - 3600)
+    r = chief(ctx, [], {}, None)           # data check missing -> early return
+    assert r.bias == "WAIT" and r.headline.startswith("NO TRADE") and r.quality and "score" in r.quality

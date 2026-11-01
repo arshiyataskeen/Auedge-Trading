@@ -15,6 +15,7 @@ LONDON = (3, 12)
 NEWYORK = (8, 17)
 OVERLAP = (8, 12)
 LOW_LIQUIDITY = (17, 19)
+REOPEN = 18             # daily reopen / Sunday open, NY (display: Asian is shown from here)
 
 
 def ny(t) -> datetime:
@@ -33,6 +34,7 @@ class SessionNow:
     sessions: list[str]
     low_liquidity: bool
     text: str
+    closed: bool = False
 
 
 @dataclass
@@ -56,10 +58,22 @@ class OpenSweep:
     text: str
 
 
+def market_closed(t) -> str:
+    """'' when gold trades; 'Market closed (weekend)' Fri 17:00 - Sun 18:00 NY; 'Daily break' 17:00-18:00 NY."""
+    d = ny(t)
+    wd, h = d.weekday(), d.hour
+    if wd == 5 or (wd == 4 and h >= 17) or (wd == 6 and h < 18):
+        return "Market closed (weekend)"
+    return "Daily break" if h == 17 else ""
+
+
 def current_sessions(t) -> SessionNow:
+    closed = market_closed(t)
+    if closed:
+        return SessionNow([], False, closed, True)
     h = ny(t).hour
     names = []
-    if h >= ASIAN[0]:
+    if h >= REOPEN:
         names.append("Asian")
     if LONDON[0] <= h < LONDON[1]:
         names.append("London")

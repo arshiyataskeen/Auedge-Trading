@@ -202,6 +202,7 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
         rep.verdict = "Do not trade on this dashboard right now: " + ("; ".join(data_check.warnings[:2]) if data_check and
                        data_check.status == "OK" else "the data check itself could not run")
         rep.plan = TradePlan(kind="none", action="NO TRADE", steps=[rep.verdict])
+        _quality(ctx, rep, "BUY" if direction > 0 else "SELL" if direction < 0 else "WAIT", None)   # display only
         return rep
 
     _intel(ctx, rep)
@@ -236,6 +237,7 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
             "Do nothing for now: the timeframes disagree.",
             f"Set price alerts at {fmt(near_above.price if near_above else None)} and {fmt(near_below.price if near_below else None)}.",
             "Wait for the next analysis (every 15 minutes)."])
+        _quality(ctx, rep, "WAIT", None)   # display only
         return rep
 
     side = "BUY" if direction > 0 else "SELL"

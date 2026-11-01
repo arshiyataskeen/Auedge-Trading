@@ -29,6 +29,8 @@ def bars(y, m, d0, days, f=lambda t: 100.0):
 @pytest.mark.parametrize("y,m,d", [(2026, 3, 4), (2026, 11, 1)])    # DST changes Mar 8 and Nov 1
 def test_windows_follow_ny_clock_across_dst(y, m, d):
     for day in range(d, d + 6):
+        if S.market_closed(ts(y, m, day, 9)) or S.market_closed(ts(y, m, day, 18)):
+            continue                                              # weekend days: covered by test_closed
         now = ts(y, m, day, 10) if not (m == 11 and day == 1) else ts(y, m, day, 10)
         s, e = S.asian_window(now)
         assert S.ny(s).hour == 20 and S.ny(e).hour == 0 and S.ny(e).date() == S.ny(now).date()
@@ -102,3 +104,38 @@ def test_callers_unchanged_on_real_candles():
             assert S.asian_range(w, now, "utc_0_7") == exp
             checked += 1
     assert checked > 50
+
+
+# ---- market closed (weekend / daily break), NY wall clock
+@pytest.mark.parametrize("args,txt", [((2026, 10, 31, 12), "Market closed (weekend)"),     # Sat noon
+                                      ((2026, 11, 1, 10, 30), "Market closed (weekend)"),  # Sun before 18:00
+                                      ((2026, 10, 30, 17, 30), "Market closed (weekend)"),  # Fri after 17:00
+                                      ((2026, 10, 28, 17, 30), "Daily break")])            # Wed 17:30
+def test_closed(args, txt):
+    s = S.current_sessions(ts(*args))
+    assert s.sessions == [] and s.closed and not s.low_liquidity and s.text == txt
+
+
+@pytest.mark.parametrize("args", [(2026, 11, 1, 18, 30), (2026, 10, 28, 18, 0), (2026, 10, 28, 16, 59),
+                                  (2026, 3, 8, 18, 30), (2026, 3, 15, 18, 30), (2026, 11, 8, 18, 30),
+                                  (2026, 3, 13, 16, 59)])
+def test_open_incl_dst_weeks(args):
+    assert not S.current_sessions(ts(*args)).closed
+
+
+def test_sunday_open_is_asian():
+    assert S.current_sessions(ts(2026, 11, 1, 18, 30)).sessions == ["Asian"]   # reopen 18:00 = Asian
+    assert S.current_sessions(ts(2026, 11, 1, 20, 30)).sessions == ["Asian"]
+
+
+def test_dst_week_closed_edges():
+    assert S.current_sessions(ts(2026, 3, 8, 17, 59)).closed       # Sun, DST starts that day (02:00)
+    assert S.current_sessions(ts(2026, 11, 1, 17, 59)).closed      # Sun, DST ends that day
+    assert S.current_sessions(ts(2026, 11, 6, 17, 1)).closed       # Fri
+
+
+def test_score_session_neutral_when_closed(monkeypatch):
+    from core.intel import score
+    r = score.score_factors({"session": {"ok": None, "text": "Market closed (weekend)"}},
+                            config={"weights": {"session": 10}, "bands": score.DEFAULT_BANDS})
+    assert r["factors"][0]["points"] == 5.0

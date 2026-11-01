@@ -139,7 +139,7 @@ def build_quality(ctx, rep, side: str, plan: dict | None = None, flag=None) -> t
     try:
         from core.intel.sessions import current_sessions
         sn = current_sessions(T)
-        F["session"] = _f(not sn.low_liquidity and bool(sn.sessions), sn.text)
+        F["session"] = _f(None, sn.text) if sn.closed else _f(not sn.low_liquidity and bool(sn.sessions), sn.text)
         if sn.low_liquidity:
             gates.append(("SESSION", sn.text, True))
     except Exception:  # noqa: BLE001

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Analysis } from '../../api/types'
-import { price } from '../../lib/format'
-import { Bias } from '../dashboard/Cards'
-import { readStored, useStored, writeStored } from './logic'
+import type { Analysis } from '../api/types'
+import { price } from '../lib/format'
+import { readStored, useStored, writeStored } from '../lib/stored'
+import { Bias } from '../pages/dashboard/Cards'
 
 let ctx: AudioContext | null = null
 /** Old beep(): three rising tones. Silent where audio is blocked or missing. */
@@ -66,14 +66,19 @@ export function useNowAlerts(d: Analysis | undefined) {
     return () => clearTimeout(id)
   }, [toast])
   const toggle = async () => {
-    const next = !on
-    set(next ? '1' : '0')
-    if (!next) return
+    if (on) { set('0'); return }
     try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission() } catch { /* ignore */ }
-    setToast(nowAlert(null, true))
+    setToast(nowAlert(null, true)) // old order: the test pop-up first, then a real NOW call (set below) replaces it
+    set('1')
   }
   return { on, toggle, toast, dismiss: () => setToast(null) }
 }
+
+export type NowAlerts = ReturnType<typeof useNowAlerts>
+const OFF: NowAlerts = { on: false, toggle: async () => {}, toast: null, dismiss: () => {} }
+/** Alerts are owned by the app shell (they must work on every page); the top bar's bell reads them from here. */
+export const NowAlertsContext = createContext<NowAlerts>(OFF)
+export const useAlertsContext = () => useContext(NowAlertsContext)
 
 export function AlertButton({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (

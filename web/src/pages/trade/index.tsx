@@ -4,7 +4,6 @@ import type { Analysis } from '../../api/types'
 import PageHeader from '../../components/PageHeader'
 import QueryCard from '../../components/QueryCard'
 import Tabs from '../../components/Tabs'
-import { AlertButton, NowToast, useNowAlerts } from './alerts'
 import ChartArea from './ChartArea'
 import ChiefDetails from './ChiefDetails'
 import Decision from './Decision'
@@ -42,7 +41,6 @@ export default function TradePage() {
   const analysis = useAnalysis()
   const refresh = useRefreshAnalysis()
   const d = analysis.data
-  const alerts = useNowAlerts(d)
   const nextIn = useNextIn(analysis.dataUpdatedAt, d?.next_in_s)
   const [wide, setWide] = useState(false)
   const [details, setDetails] = useState(false)
@@ -57,7 +55,6 @@ export default function TradePage() {
       <span className="rounded border border-line px-2 py-1 text-[11.5px] text-muted" title="All agents re-run 20 seconds after every 15-minute candle closes">
         Next analysis <b className="tabular-nums text-strong">{nextIn}</b>
       </span>
-      <AlertButton on={alerts.on} onClick={alerts.toggle} />
       <button type="button" aria-label="Refresh the analysis" title="Run all agents again now" disabled={refresh.isPending}
         onClick={() => refresh.mutate()} className={`${BTN} border-accent bg-accent text-white`}>
         <svg viewBox="0 0 24 24" className={`${ICON} ${refresh.isPending ? 'animate-spin' : ''}`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -97,7 +94,6 @@ export default function TradePage() {
           </QueryCard>
         </section>
       </div>
-      {alerts.toast && <NowToast toast={alerts.toast} onClose={alerts.dismiss} />}
     </div>
   )
 }

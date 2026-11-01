@@ -4,7 +4,7 @@ import { Card, Meta, Sect, segCls } from '../journal/ui'
 import { levelRows, type LevelRow } from './logic'
 
 const KIND = {
-  entry: 'bg-acc-bg text-[#5b8cff]', stop: 'bg-down-bg text-down', target: 'bg-up-bg text-up', pool: 'bg-warn-bg text-warn', other: 'bg-panel2 text-muted',
+  entry: 'bg-acc-bg text-entry', stop: 'bg-down-bg text-down', target: 'bg-up-bg text-up', pool: 'bg-warn-bg text-warn', other: 'bg-panel2 text-muted',
 } as const
 const Kind = ({ k, children }: { k: keyof typeof KIND; children: string }) =>
   <span className={`whitespace-nowrap rounded px-1.5 py-px text-[10.5px] font-bold uppercase ${KIND[k]}`}>{children}</span>

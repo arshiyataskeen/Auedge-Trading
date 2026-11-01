@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Sidebar from './Sidebar'
 import Tabs from './Tabs'
 import ThemeToggle from './ThemeToggle'
 import TopBar from './TopBar'
+import { useLivePrice } from '../api/live'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); delete document.documentElement.dataset.theme })
 
@@ -91,6 +93,8 @@ describe('ThemeToggle', () => {
   })
 })
 
+const topBar = () => <QueryClientProvider client={new QueryClient()}><MemoryRouter><TopBar /></MemoryRouter></QueryClientProvider>
+
 describe('TopBar live price', () => {
   beforeEach(() => {
     const now = Date.now()
@@ -102,20 +106,34 @@ describe('TopBar live price', () => {
     }))
   })
   it('shows price, 24h change and LIVE badge', async () => {
-    render(<MemoryRouter><TopBar /></MemoryRouter>)
+    render(topBar())
     await waitFor(() => expect(screen.getByText('$2,400.50')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByText(/\+20\.00.*24h/)).toBeInTheDocument())
     expect(screen.getByText('LIVE')).toBeInTheDocument()
   })
+  it('every consumer shares one poller (one /spot and one /intraday request)', async () => {
+    const Probe = () => <i>{useLivePrice().price}</i>
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><TopBar /><Probe /><Probe /></MemoryRouter></QueryClientProvider>)
+    await waitFor(() => expect(screen.getByText('$2,400.50')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/\+20\.00.*24h/)).toBeInTheDocument())
+    const urls = (fetch as unknown as { mock: { calls: [string][] } }).mock.calls.map((c) => String(c[0]))
+    expect(urls.filter((u) => u.includes('/spot'))).toHaveLength(1)
+    expect(urls.filter((u) => u.includes('/intraday'))).toHaveLength(1)
+  })
+  it('a 503 from the price service shows NO PRICE AVAILABLE', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('/spot')
+      ? { ok: false, status: 503, json: async () => ({}) } : { ok: true, json: async () => ({ points: [] }) }))
+    render(topBar())
+    await waitFor(() => expect(screen.getByText('NO PRICE AVAILABLE')).toBeInTheDocument())
+  })
   it('shows a connection problem when fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('x') }))
-    render(<MemoryRouter><TopBar /></MemoryRouter>)
+    render(topBar())
     await waitFor(() => expect(screen.getByText('CONNECTION PROBLEM')).toBeInTheDocument())
   })
 })
 
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { routes } from '../routes'
 
 describe('routes', () => {

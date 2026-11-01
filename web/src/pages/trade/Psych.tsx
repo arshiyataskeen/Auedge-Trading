@@ -25,7 +25,7 @@ function Step({ k, val, label, max, onStep }: { k: Key; val: number; label: stri
 
 /** Old psychCard(): the discipline agent's warnings and rows, my own trade counters, and the four-point pre-trade checklist. */
 export default function PsychCard({ psy, plan, genAt, userStop }: { psy: AgentView | undefined; plan: TradePlan; genAt: string; userStop: boolean }) {
-  const { my } = useMyDay()
+  const { my, myStop } = useMyDay()
   const [rawChecks] = useStored('checks', '{}')
   const mine = parseChecks(rawChecks, genAt)
   const done = CHECKS.filter(([k]) => mine[k]).length
@@ -56,7 +56,7 @@ export default function PsychCard({ psy, plan, genAt, userStop }: { psy: AgentVi
           <Step k="trades" val={my.trades} label="Trades" max={MY_MAX_TRADES} onStep={onStep} />
           <Step k="losses" val={my.losses} label="Losses" max={MY_MAX_LOSSES} onStep={onStep} />
         </div>
-        {userStop && <div className="mt-2 rounded bg-down-bg px-2.5 py-2 text-[13px] font-semibold text-down">Your daily limit is reached. Close the platform for today; tomorrow is a new day.</div>}
+        {(userStop || myStop) && <div className="mt-2 rounded bg-down-bg px-2.5 py-2 text-[13px] font-semibold text-down">Your daily limit is reached. Close the platform for today; tomorrow is a new day.</div>}
       </div>
       {plan.stop != null && !userStop && (
         <div className="mt-3">

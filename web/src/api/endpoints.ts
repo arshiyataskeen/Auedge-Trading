@@ -54,12 +54,12 @@ export const useAnalysis = () =>
 export const useCalls = (days: number) =>
   useQuery({ queryKey: qk.calls(days), enabled: days > 0, queryFn: () => getJSON<Calls>(`/api/calls?days=${days}`) })
 
-/** XAUS 2-5 min spot samples of the last 48 h (old loadSpot). Re-read each time the Spot chart opens; retried every minute after a failure. */
+/** XAUS 2-5 min spot samples of the last 48 h (old loadSpot). Re-read when the Spot chart opens and every 2 min; retried every minute after a failure. */
 export const useSpotSamples = (enabled: boolean) =>
   useQuery({
     queryKey: qk.xausSpot, enabled, refetchOnMount: 'always',
     queryFn: () => xausGet<XausIntraday>('/intraday?symbol=xau&hours=48'),
-    refetchInterval: (q) => (q.state.status === 'error' ? 60_000 : false),
+    refetchInterval: (q) => (q.state.status === 'error' ? 60_000 : 120_000), // live ticks are kept on top of each re-read
   })
 
 /** XAUS COMEX futures candles (old loadFutures); the API caches them ~60 s, so poll every 60 s. */

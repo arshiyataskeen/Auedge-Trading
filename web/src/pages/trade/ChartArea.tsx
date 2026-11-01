@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useCalls, useFuturesChart, useSpotSamples } from '../../api/endpoints'
 import { useLivePrice } from '../../api/live'
 import type { Analysis, BtTrade } from '../../api/types'
@@ -13,6 +13,7 @@ import {
 import { useTheme } from './theme'
 
 const fmt2 = (n: number) => price(n)
+const ASSUMED_LOT = 0.1
 const SRC: { key: Src; t: string; s: string; title: string }[] = [
   { key: 'tv', t: 'TradingView', s: 'Live ticks · tools', title: "TradingView's own live chart, tick by tick (OANDA XAU/USD feed). Has drawing tools and indicators." },
   { key: 'spot', t: 'Spot + zones', s: "Agents' levels", title: "Spot gold price from XAUS. The agents' entry, stop, targets and stop pools are drawn on this chart." },
@@ -53,6 +54,7 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
   const [now, setNow] = useState(() => Date.now() / 1000)
   useEffect(() => { const id = setInterval(() => setNow(Date.now() / 1000), 1000); return () => clearInterval(id) }, [])
 
+  useEffect(() => { if (src === 'tv') window.dispatchEvent(new Event('resize')) }, [src]) // TradingView sized itself while hidden
   const spot = useSpotSamples(src === 'spot')
   const fut = useFuturesChart(src === 'fut', TF[tf].fut.interval, TF[tf].fut.range)
   const callsQ = useCalls(days)
@@ -64,23 +66,37 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
   const sec = TF[tfEff].sec
 
   const lpPrice = lp.price, lpAt = lp.updatedAt
+  // Spot candles = the fetched samples plus every live tick since (old addSpotTick mutated state.bars): rebuilt only when the samples or the timeframe change.
+  const spotBase = useMemo<Bar[]>(() => {
+    const pts = (spot.data?.points ?? []).filter((p) => p.p != null)
+    return pts.length ? aggregate(pts, sec) : []
+  }, [spot.data, sec])
+  const [spotBars, setSpotBars] = useState<Bar[]>([])
+  const tickRef = useRef({ price: lpPrice, at: lpAt })
+  tickRef.current = { price: lpPrice, at: lpAt }
+  useEffect(() => {
+    const { price: p, at } = tickRef.current
+    setSpotBars(p != null && at != null ? withTick(spotBase, p, at, sec) : spotBase)
+  }, [spotBase, sec])
+  useEffect(() => {
+    if (lpPrice != null && lpAt != null) setSpotBars((prev) => withTick(prev, lpPrice, lpAt, sec))
+  }, [lpPrice, lpAt, sec])
+
+  // A failed background poll keeps the candles already on screen (as the old code did); the message is for "nothing to show".
   const { bars, error } = useMemo<{ bars: Bar[]; error: string | null }>(() => {
     if (src === 'spot') {
-      if (spot.isError) return { bars: [], error: (spot.error as Error).message }
-      if (!spot.data) return { bars: [], error: null }
-      const pts = spot.data.points.filter((p) => p.p != null)
-      if (!pts.length) return { bars: [], error: 'No spot samples returned' }
-      const b = aggregate(pts, sec)
-      return { bars: lpPrice != null && lpAt != null ? withTick(b, lpPrice, lpAt, sec) : b, error: null }
+      if (spot.data) return spotBars.length ? { bars: spotBars, error: null } : { bars: [], error: 'No spot samples returned' }
+      return { bars: [], error: spot.isError ? (spot.error as Error).message : null }
     }
     if (src === 'fut') {
-      if (fut.isError) return { bars: [], error: (fut.error as Error).message }
-      if (!fut.data) return { bars: [], error: null }
-      const b = futuresBars(fut.data, tfEff)
-      return b.length ? { bars: b, error: null } : { bars: [], error: 'No candles returned' }
+      if (fut.data) {
+        const b = futuresBars(fut.data, tfEff)
+        return b.length ? { bars: b, error: null } : { bars: [], error: 'No candles returned' }
+      }
+      return { bars: [], error: fut.isError ? (fut.error as Error).message : null }
     }
     return { bars: [], error: null }
-  }, [src, spot.data, spot.isError, spot.error, fut.data, fut.isError, fut.error, sec, tfEff, lpPrice, lpAt])
+  }, [src, spot.data, spot.isError, spot.error, spotBars, fut.data, fut.isError, fut.error, tfEff])
 
   const q = src === 'spot' ? spot : fut
   const msg = src === 'tv' ? '' : error
@@ -171,7 +187,7 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
         </label>
       </div>
       <div className="relative h-[58svh] min-h-[320px] overflow-hidden rounded border border-line bg-bg min-[900px]:h-[calc(100svh-12rem)] min-[900px]:min-h-[420px]">
-        {src === 'tv' && <TvChart theme={theme} />}
+        <div hidden={src !== 'tv'} aria-hidden={src !== 'tv'} className="absolute inset-0"><TvChart theme={theme} /></div>
         {src !== 'tv' && (
           <SpotChart key={src} kind={src} bars={bars} volume={src === 'fut'} resetKey={`${src}|${tfEff}`} theme={theme}
             levels={levels} markers={markers} countdown={countdown} calls={calls} sec={sec} onPickCall={setReplay} />
@@ -185,7 +201,7 @@ export default function ChartArea({ analysis }: { analysis: Analysis | undefined
         {src === 'tv' ? 'Live ticks from TradingView (OANDA feed). Agents use XAUS data, so prices may differ by a few cents to dollars.'
           : src === 'spot' ? 'Live price checked every 15 s (it changes about once a minute)' : 'Futures candles refreshed every 60 s'}
       </p>
-      {replay && <TradeReplay trade={replay} lot={0.1} onClose={() => setReplay(null)} />}
+      {replay && <TradeReplay trade={replay} lot={ASSUMED_LOT} lotNote={replay.usd == null ? `Dollar amounts use an assumed ${ASSUMED_LOT} lot (a call does not record its lot).` : undefined} onClose={() => setReplay(null)} />}
     </div>
   )
 }

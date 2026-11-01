@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLivePrice } from '../api/live'
 import { price as fmt } from '../lib/format'
 import { marketStatus } from '../lib/time'
+import { AlertButton, useAlertsContext } from './NowAlerts'
 import ThemeToggle from './ThemeToggle'
 
 function market(nowMs: number) {
@@ -21,6 +22,7 @@ const BADGE = {
 
 export default function TopBar() {
   const lp = useLivePrice()
+  const alerts = useAlertsContext()
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id) }, [])
   const mk = market(now)
@@ -41,7 +43,7 @@ export default function TopBar() {
         {badge.text}
       </span>
       <span className={`text-[11px] max-sm:hidden ${mk.cls}`}>{mk.text}</span>
-      <span className="ml-auto"><ThemeToggle /></span>
+      <span className="ml-auto flex items-center gap-1.5"><AlertButton on={alerts.on} onClick={alerts.toggle} /><ThemeToggle /></span>
     </header>
   )
 }

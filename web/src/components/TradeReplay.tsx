@@ -16,10 +16,10 @@ const when = (ts: number) =>
   new Date(ts * 1000).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const cssVar = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
-type Props = { trade: BtTrade; src?: string; lot?: number; onClose: () => void }
+type Props = { trade: BtTrade; src?: string; lot?: number; /** shown under the trade text, e.g. that the lot is an assumption */ lotNote?: string; onClose: () => void }
 
 /** Port of the old openTrade + rp*: modal with the trade's levels and a candle-by-candle replay. */
-export default function TradeReplay({ trade, src, lot = 0.1, onClose }: Props) {
+export default function TradeReplay({ trade, src, lot = 0.1, lotNote, onClose }: Props) {
   const t = useMemo(() => {
     const entry_t = Math.floor(trade.entry_t)
     return { ...trade, entry_t, decided_t: Math.floor(trade.decided_t || entry_t), exit_t: Math.floor(trade.exit_t || Date.now() / 1000) }
@@ -87,6 +87,7 @@ export default function TradeReplay({ trade, src, lot = 0.1, onClose }: Props) {
             : <span className={tone}>{rtext(t.r)}{t.usd != null ? ` · ${money(t.usd)}` : ''}</span>}
         </h2>
         <p className="text-[12px] text-muted">{t.why}</p>
+        {lotNote && <p className="text-[11.5px] text-warn">{lotNote}</p>}
         <div className="my-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           <Level k="Entry" v={price(t.entry)} sub={when(t.entry_t)} cls="text-[#5b8cff]" />
           <Level k="Stop loss" v={price(t.stop)} sub={`risk ${price(risk)} = ${d$(risk)}`} cls="text-down" />

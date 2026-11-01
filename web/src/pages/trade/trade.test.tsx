@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import AppShell from '../../components/AppShell'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import TradePage from './index'
-import { TF, aggregate, fmtLeft, levelRows, sizeInfo, withTick } from './logic'
+import { TF, aggregate, fmtLeft, levelRows, sizeInfo, tradingDay, withTick } from './logic'
 
 const m = vi.hoisted(() => {
   const series = {
@@ -16,10 +17,16 @@ const m = vi.hoisted(() => {
     priceScale: vi.fn(() => ({ applyOptions: vi.fn() })), subscribeClick: vi.fn(), unsubscribeClick: vi.fn(),
     timeScale: vi.fn(() => ({ fitContent: vi.fn(), timeToCoordinate: vi.fn(() => 10) })),
   }
-  return { series, hist, chart, createChart: vi.fn(() => chart), live: { price: 4095 as number | null, updatedAt: 0, source: 'x', status: 'live', change: null } }
+  const subs = new Set<() => void>()
+  const live = { price: 4095 as number | null, updatedAt: 0, source: 'x', status: 'live', change: null }
+  const setLive = (price: number, updatedAt: number) => { Object.assign(live, { price, updatedAt }); subs.forEach((f) => f()) }
+  return { series, hist, chart, createChart: vi.fn(() => chart), live, subs, setLive }
 })
 vi.mock('lightweight-charts', () => ({ createChart: m.createChart, CrosshairMode: { Normal: 0 }, LineStyle: { Solid: 0, Dotted: 1, Dashed: 2 } }))
-vi.mock('../../api/live', () => ({ useLivePrice: () => m.live }))
+vi.mock('../../api/live', async () => {
+  const { useEffect, useState } = await import('react')
+  return { useLivePrice: () => { const [, f] = useState(0); useEffect(() => { const g = () => f((x) => x + 1); m.subs.add(g); return () => { m.subs.delete(g) } }, []); return { ...m.live } } }
+})
 
 const agent = (name: string, label: string, o: Record<string, unknown> = {}) => ({
   agent: name, status: 'OK', bias: 'WAIT', confidence: 40, headline: `${label} headline`, reasons: [], warnings: [], levels: [],
@@ -58,8 +65,10 @@ const pts = (n: number, step: number) => Array.from({ length: n }, (_, i) => ({ 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status })
 let calls: { url: string; method: string }[]
 let analyses: unknown[]
+let futFail = false
 function mockApi(over: Record<string, () => Response> = {}) {
   calls = []
+  futFail = false
   analyses = [ANALYSIS()]
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method ?? 'GET' })
@@ -68,14 +77,23 @@ function mockApi(over: Record<string, () => Response> = {}) {
     if (path === '/api/analysis') return json(analyses.length > 1 ? analyses.shift() : analyses[0])
     if (path === '/api/calls') return json({ days: 7, calls: [CALL] })
     if (path.endsWith('/intraday')) return json({ interval_seconds: 300, source: 'sampler', points: pts(40, 300).map((p) => ({ t: p.t, p: p.c })) })
-    if (path.endsWith('/chart')) return json({ points: pts(30, 900) })
+    if (path.endsWith('/chart')) return futFail ? json({}, 500) : json({ points: pts(30, 900) })
     return new Response('{}', { status: 404 })
   }))
 }
-function mount() {
+let client: QueryClient
+function mount(path = '/trade') {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter><TradePage /></MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/trade" element={<TradePage />} />
+            <Route path="/other" element={<div>another page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -88,10 +106,13 @@ beforeEach(() => {
     createGain() { return { connect() {}, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} } } }
   })
 })
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => {
+  vi.unstubAllGlobals(); delete (window as { TradingView?: unknown }).TradingView; delete document.documentElement.dataset.theme
+})
 
 const srcBtn = (n: RegExp) => screen.getByRole('button', { name: n })
-const charts = () => ['tv-chart', 'spot-chart', 'fut-chart'].filter((id) => screen.queryByTestId(id))
+const isVisible = (el: HTMLElement | null) => { if (!el) return false; try { expect(el).toBeVisible(); return true } catch { return false } }
+const charts = () => ['tv-chart', 'spot-chart', 'fut-chart'].filter((id) => isVisible(screen.queryByTestId(id)))
 
 it('the source switch shows exactly one of the TradingView, Spot and Futures charts', async () => {
   mockApi()
@@ -172,7 +193,7 @@ it('the Spot chart draws the Chief levels (and Zones turns them off); the Future
   fireEvent.click(srcBtn(/^Futures/))
   await screen.findByTestId('fut-chart')
   expect(await screen.findByText(/Gold FUTURES \(COMEX\), not spot/)).toBeInTheDocument()
-  expect(screen.getByText(/Futures − spot: /)).toBeInTheDocument()
+  expect(screen.getByText('Futures − spot: -2.10 $')).toBeInTheDocument() // last futures close 4092.9 − live 4095
 })
 
 it('spot timeframes that would hold fewer than 3 samples are disabled', async () => {
@@ -311,6 +332,120 @@ it('the candle countdown pill shows the time left for the timeframe, and Trading
   await screen.findByTestId('fut-chart')
   fireEvent.click(screen.getByRole('button', { name: '1d' }))
   await waitFor(() => expect(screen.queryByTestId('cd-pill')).not.toBeInTheDocument()) // daily candles: no countdown
+})
+
+/* ---- fix round 1 ---- */
+const shift = () => -new Date().getTimezoneOffset() * 60
+const lastBars = () => (m.series.setData.mock.calls.at(-1)![0] as { time: number; open: number; high: number; low: number; close: number }[])
+  .map((b) => ({ ...b, time: b.time - shift() }))
+
+it('live spot ticks accumulate: every candle survives and a bucket keeps its running high and low', async () => {
+  mockApi()
+  mount()
+  fireEvent.click(srcBtn(/^Spot/))
+  await screen.findByTestId('spot-chart')
+  await waitFor(() => expect(m.series.setData.mock.calls.length).toBeGreaterThan(0))
+  await waitFor(() => expect(lastBars().length).toBeGreaterThan(5))
+  const n0 = lastBars().length
+  act(() => m.setLive(4200, T0 + 10)) // opens the T0 candle
+  act(() => m.setLive(4210, T0 + 910)) // opens the next one
+  act(() => m.setLive(4150, T0 + 920)) // same bucket: low
+  act(() => m.setLive(4230, T0 + 930)) // same bucket: high
+  await waitFor(() => expect(lastBars()).toHaveLength(n0 + 2))
+  const bars = lastBars()
+  expect(bars.at(-2)).toMatchObject({ time: T0, open: 4200, high: 4200, low: 4200, close: 4200 })
+  expect(bars.at(-1)).toMatchObject({ time: T0 + 900, open: 4210, high: 4230, low: 4150, close: 4230 })
+})
+
+it('NOW alerts fire on every page, not only while /trade is open', async () => {
+  localStorage.setItem('alerts', '1')
+  mockApi()
+  mount('/other')
+  expect(screen.getByText('another page')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent('BUY NOW near 4,092.00')
+  expect(beep.osc).toBe(3)
+})
+
+it('a theme change re-creates the TradingView widget with the new theme and clears a failed state', async () => {
+  mockApi()
+  mount()
+  const holder = await screen.findByTestId('tv-chart')
+  const bad = document.head.querySelector('script[src*="tradingview"]')!
+  act(() => { bad.dispatchEvent(new Event('error')) })
+  expect(await screen.findByText(/Could not load the TradingView chart/)).toBeInTheDocument()
+  const widget = vi.fn()
+  ;(window as unknown as { TradingView: unknown }).TradingView = { widget }
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
+  await waitFor(() => expect(widget).toHaveBeenCalledTimes(1))
+  expect(widget.mock.calls[0][0]).toMatchObject({ theme: 'light', symbol: 'OANDA:XAUUSD' })
+  expect(screen.queryByText(/Could not load the TradingView chart/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
+  // a rebuild reloads tv.js like the old setTheme did; the widget is made once that script has loaded
+  await waitFor(() => expect(document.head.querySelectorAll('script[src*="tradingview"]').length).toBeGreaterThan(0))
+  act(() => { [...document.head.querySelectorAll('script[src*="tradingview"]')].at(-1)!.dispatchEvent(new Event('load')) })
+  await waitFor(() => expect(widget).toHaveBeenCalledTimes(2))
+  expect(widget.mock.calls[1][0]).toMatchObject({ theme: 'dark' })
+  // switching to another source and back keeps the same widget (indicators and drawings survive)
+  fireEvent.click(srcBtn(/^Spot/))
+  await screen.findByTestId('spot-chart')
+  expect(screen.getByTestId('tv-chart')).not.toBeVisible()
+  expect(screen.getByTestId('tv-chart').closest('[aria-hidden="true"]')).not.toBeNull()
+  fireEvent.click(srcBtn(/^TradingView/))
+  expect(screen.getByTestId('tv-chart')).toBeVisible()
+  expect(screen.getByTestId('tv-chart')).toBe(holder)
+  expect(widget).toHaveBeenCalledTimes(2)
+})
+
+it('switching alerts on shows the test pop-up first and then the real NOW call', async () => {
+  mockApi()
+  mount()
+  await screen.findByRole('button', { name: /Chief analyst decision/ })
+  fireEvent.click(screen.getByRole('button', { name: /Alerts for BUY NOW/ }))
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('BUY NOW near 4,092.00'))
+  expect(screen.queryByText(/Alerts are on/)).not.toBeInTheDocument()
+})
+
+it('one failed 60 s futures poll keeps the candles and the label', async () => {
+  mockApi()
+  mount()
+  fireEvent.click(srcBtn(/^Futures/))
+  expect(await screen.findByText(/Gold FUTURES \(COMEX\), not spot/)).toBeInTheDocument()
+  futFail = true
+  await act(async () => { await client.refetchQueries({ queryKey: ['xaus', 'chart'] }) })
+  expect(client.getQueryCache().findAll({ queryKey: ['xaus', 'chart'] })[0].state.status).toBe('error') // the poll really failed
+  expect(screen.queryByText(/Candles unavailable/)).not.toBeInTheDocument()
+  expect(screen.getByText(/Gold FUTURES \(COMEX\), not spot/)).toBeInTheDocument()
+  expect(lastBars().length).toBe(30)
+})
+
+it('the daily-limit banner shows once the counters reach the limit even when a data veto already stops the plan', async () => {
+  localStorage.setItem('myDay', JSON.stringify({ day: tradingDay(), trades: 2, losses: 0 }))
+  mockApi()
+  const a = ANALYSIS() as { data_check: { veto: boolean; warnings: string[] } }
+  a.data_check = { ...a.data_check, veto: true, warnings: ['Price feed stale'] }
+  analyses = [a]
+  mount()
+  const d = await screen.findByRole('button', { name: /Chief analyst decision/ })
+  expect(d).toHaveTextContent('NO TRADE NOW')
+  expect(screen.getByText(/Your daily limit is reached/)).toBeInTheDocument()
+})
+
+it('the entry level uses a theme token, not a hard-coded colour', async () => {
+  mockApi()
+  mount()
+  const d = await screen.findByRole('button', { name: /Chief analyst decision/ })
+  expect(within(d).getByText('Entry').nextElementSibling).toHaveClass('text-entry')
+})
+
+it('a call replay says the lot is assumed when the call carries none', async () => {
+  mockApi()
+  mount()
+  await screen.findByRole('button', { name: /Chief analyst decision/ })
+  fireEvent.click(screen.getByRole('button', { name: /^Calls/ }))
+  await waitFor(() => expect(m.series.setMarkers.mock.calls.some(([mk]) => mk.length > 0)).toBe(true))
+  act(() => { m.chart.subscribeClick.mock.calls.at(-1)![0]({ point: { x: 10, y: 10 } }) })
+  const dlg = await screen.findByRole('dialog', { name: 'Trade replay' })
+  expect(dlg).toHaveTextContent('assumed 0.1 lot')
 })
 
 /* ---- pure logic ---- */

@@ -54,7 +54,7 @@ export default function Decision({ d, onOpen }: { d: Analysis; onOpen: () => voi
     const usd = (x: number) => `$${Math.round(Math.abs(x - entry) * oz).toLocaleString()}`
     lv = (
       <div className="mt-2.5 grid grid-cols-2 gap-px overflow-hidden rounded bg-line sm:grid-cols-4 min-[900px]:max-[1499px]:grid-cols-2">
-        <Lv k="Entry" tone="text-[#5b8cff]" d={`${price(plan.entry_lo)} – ${price(plan.entry_hi)}`}>{price(entry)}</Lv>
+        <Lv k="Entry" tone="text-entry" d={`${price(plan.entry_lo)} – ${price(plan.entry_hi)}`}>{price(entry)}</Lv>
         <Lv k="Stop loss" tone="text-down" d={`−${usd(plan.stop)} at ${oz / 100} lot`}>{price(plan.stop)}</Lv>
         {plan.be_at != null && <Lv k="Half off · 1R" tone="text-up" d="then stop to entry">{price(plan.be_at)}</Lv>}
         {plan.t1 != null && <Lv k="Target" tone="text-up" d={`+${usd(plan.t1)}${r(plan.t1)}`}>{price(plan.t1)}</Lv>}
@@ -65,7 +65,7 @@ export default function Decision({ d, onOpen }: { d: Analysis; onOpen: () => voi
     const sell = plan.side === 'SELL', wl = plan.side === 'BUY' ? plan.entry_hi : plan.entry_lo
     lv = (
       <div className="mt-2.5 grid gap-px overflow-hidden rounded bg-line sm:grid-cols-[minmax(0,1fr)_minmax(0,2.2fr)]">
-        <Lv k="Watch level · alert only" tone="text-[#5b8cff]" d={dist(wl) || 'set a price alert here'}>{price(wl)}</Lv>
+        <Lv k="Watch level · alert only" tone="text-entry" d={dist(wl) || 'set a price alert here'}>{price(wl)}</Lv>
         <div className="bg-bg px-2 py-[7px]">
           <div className="text-[11px] text-muted">What to wait for</div>
           <div className="mt-0.5 text-[12.5px] leading-[1.4]">

@@ -43,7 +43,7 @@ export default function MonthCalendar({ groups, month, selectedDay, onPickDay, o
           const dd = i + 1
           const k = `${month}-${String(dd).padStart(2, '0')}`
           const x = groups.days.get(k)
-          const tone = !x ? '' : x.pnl > 0 ? 'bg-up/15' : x.pnl < 0 ? 'bg-down/15' : 'bg-panel2'
+          const tone = !x ? '' : x.pnl > 0 ? 'bg-up-bg' : x.pnl < 0 ? 'bg-down-bg' : 'bg-panel2'
           return (
             <button key={k} type="button" data-testid="cal-day" data-day={k} disabled={!x} aria-pressed={k === selectedDay}
               aria-label={x ? `${k}: ${show(x.pnl)}, ${x.n} trades` : k} onClick={() => onPickDay(k)}

@@ -33,7 +33,7 @@ function mockApi(over: Record<string, unknown> = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init })
     const path = url.split('?')[0]
-    if (path in over) return json(over[path])
+    if (url in over) return json(over[url]); if (path in over) return json(over[path])
     if (path === '/api/backtest/info') return json(info)
     if (path === '/api/backtest/status') return json({ running: false })
     if (path === '/api/health/latest') return json({ error: 'none' })
@@ -176,4 +176,39 @@ it('shows a progress bar while a run is active', async () => {
   expect(bar).toHaveAttribute('aria-valuenow', '30')
   expect(within(bar.parentElement!).getByText(/Replaying · 30%/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Run backtest' })).toBeDisabled()
+})
+
+it('calendar tints winning days up-bg and losing days down-bg', async () => {
+  mockApi()
+  mount()
+  await screen.findByText('Ending balance')
+  fireEvent.click(screen.getByText('July 2026'))
+  const days = (await screen.findAllByTestId('cal-day')).filter((d) => !(d as HTMLButtonElement).disabled)
+  expect(days.some((d) => d.className.includes('bg-up-bg'))).toBe(true)
+  expect(days.some((d) => d.className.includes('bg-down-bg'))).toBe(true)
+})
+
+it('Trades rows open the replay from a real button (keyboard)', async () => {
+  mockApi()
+  mount()
+  await screen.findByText('Ending balance')
+  fireEvent.click(screen.getByRole('tab', { name: 'Trades' }))
+  const btns = await screen.findAllByRole('button', { name: /Replay trade closed/ })
+  expect(btns).toHaveLength(10)
+  btns[0].focus()
+  expect(btns[0]).toHaveFocus()
+  fireEvent.keyDown(btns[0], { key: 'Enter' })
+  fireEvent.click(btns[0]) // a browser turns Enter on a focused button into a click
+  expect(await screen.findByRole('dialog', { name: 'Trade replay' })).toBeInTheDocument()
+})
+
+it('By year rows select the year from a real button', async () => {
+  const two = { ...fixture, trades: [...fixture.trades, { ...fixture.trades[9], exit_t: 1815000000, usd: 50, balance: 1 }] }
+  mockApi({ [`/api/backtest/result/${ID}`]: two })
+  mount()
+  await screen.findByText('Ending balance')
+  const b = await screen.findByRole('button', { name: 'Show 2027' })
+  b.focus()
+  fireEvent.click(b)
+  expect(await screen.findByText('2027 total')).toBeInTheDocument()
 })

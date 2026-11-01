@@ -69,10 +69,10 @@ export default function BacktestPage() {
 
       {/* Panels open below the header, only when clicked, so nothing above loaded content ever shifts. */}
       {panel === 'new' && info.data && <NewRunForm info={info.data} status={status.data} running={running} />}
-      {panel === 'new' && !info.data && info.isLoading && <div className="mb-3 rounded border border-line bg-bg p-3 text-[12px] text-muted">Loading…</div>}
+      {panel === 'new' && !info.data && info.isLoading && <div className="mb-3 rounded border border-line bg-panel p-3 text-[12px] text-muted">Loading…</div>}
       {panel === 'health' && <HealthCheck status={status.data} running={running} />}
       {finishedError && (
-        <div role="alert" className="mb-3 rounded border border-line bg-bg p-3 text-[12.5px] text-warn">{finishedError}</div>
+        <div role="alert" className="mb-3 rounded border border-line bg-panel p-3 text-[12.5px] text-warn">{finishedError}</div>
       )}
 
       <div className="min-h-[360px]">

@@ -1,5 +1,5 @@
-/** Card surface used across the Backtest page (the shared `panel` colour is not defined in the theme). */
-export const card = 'rounded border border-line bg-bg p-3'
+/** Card surface used across the Backtest page (same `panel` token as the shared components). */
+export const card = 'rounded border border-line bg-panel p-3'
 export const sect = 'mb-2 text-[12px] font-semibold text-strong'
 export const btn = 'rounded border border-line bg-panel2 px-3 py-1.5 text-[12.5px] text-strong hover:bg-hover disabled:opacity-50'
 export const btnOn = 'rounded border border-accent bg-panel2 px-3 py-1.5 text-[12.5px] text-strong hover:bg-hover'

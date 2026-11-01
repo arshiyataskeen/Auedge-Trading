@@ -122,12 +122,11 @@ function Loaded({ d }: { d: BtResult }) {
   const tradesTab = (
     <section className={card} aria-label="Trades">
       <h2 className={sect}>Trades · newest first · click one to replay it</h2>
-      <div className="overflow-x-auto">
         <table className="w-full text-[12.5px] tabular-nums">
           <thead>
             <tr className="text-left text-[11px] text-muted">
               <th className="py-1 font-normal">Closed</th><th className="font-normal">Side</th><th className="font-normal">Entry → exit</th>
-              <th className="font-normal">Why it closed</th><th className="font-normal">R</th><th className="text-right font-normal">Profit / loss</th>
+              <th className="hidden font-normal sm:table-cell">Why it closed</th><th className="hidden font-normal sm:table-cell">R</th><th className="text-right font-normal">Profit / loss</th>
             </tr>
           </thead>
           <tbody>
@@ -135,18 +134,20 @@ function Loaded({ d }: { d: BtResult }) {
               const t = d.trades[i]
               return (
                 <tr key={i} data-ti={i} title="Click to replay" onClick={() => setReplay(i)} className="cursor-pointer border-t border-line hover:bg-hover">
-                  <td className="py-1.5">{when(t.exit_t)}</td>
+                  <td className="py-1.5">
+                    <button type="button" aria-label={`Replay trade closed ${when(t.exit_t)}`} onClick={(e) => { e.stopPropagation(); setReplay(i) }}
+                      className="text-left hover:underline">{when(t.exit_t)}</button>
+                  </td>
                   <td className={`font-bold ${t.side === 'BUY' ? 'text-up' : 'text-down'}`}>{t.side}</td>
                   <td>{price(t.entry)} → {price(t.exit)}</td>
-                  <td className="text-muted">{t.why}</td>
-                  <td><MoneyText v={t.r} r /></td>
+                  <td className="hidden text-muted sm:table-cell">{t.why}</td>
+                  <td className="hidden sm:table-cell"><MoneyText v={t.r} r /></td>
                   <td className="text-right"><MoneyText v={hasUsd ? t.usd : t.r} r={r} /></td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-      </div>
       {newest.length > limit && (
         <button type="button" onClick={() => setLimit(limit + 100)}
           className="mt-2 rounded border border-line bg-panel2 px-3 py-1.5 text-[12.5px] text-strong hover:bg-hover">
@@ -232,7 +233,9 @@ function Loaded({ d }: { d: BtResult }) {
                   const x = groups.years.get(y)!
                   return (
                     <tr key={y} onClick={() => pickYear(y)} className="cursor-pointer border-t border-line first:border-t-0 hover:bg-hover">
-                      <td className="py-1.5 font-bold text-strong">{y}</td><td>{x.n}</td><td>{Math.round((100 * x.won) / x.n)}%</td>
+                      <td className="py-1.5 font-bold text-strong">
+                        <button type="button" aria-label={`Show ${y}`} onClick={(e) => { e.stopPropagation(); pickYear(y) }}>{y}</button>
+                      </td><td>{x.n}</td><td>{Math.round((100 * x.won) / x.n)}%</td>
                       <td className="text-right"><MoneyText v={x.pnl} r={r} /></td>
                     </tr>
                   )

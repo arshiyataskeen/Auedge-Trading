@@ -4,7 +4,8 @@ Checked in this order: calendar (no-trade window around a high-impact release, l
 releases in news_intel.db), volatility (last finished 5-minute candle abnormally large), spread (much wider than
 usual), uncertain (the news models are unsure, only around a release). Without exported models only the calendar
 gate can fire. The 5-minute data is futures and arrives about 10 minutes late, so volatility gates fire 10-15
-minutes after the spike starts."""
+minutes after the spike starts.
+The spread gate stays dormant live and in backtests: no spread source exists (XAUS gives no bid/ask)."""
 from __future__ import annotations
 
 import sqlite3

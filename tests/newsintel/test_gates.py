@@ -121,3 +121,35 @@ def test_assess_blocks_with_gate(db):
     now = datetime(2024, 3, 13, 16, 0, tzinfo=timezone.utc)
     a = assess(dict(STATS), now, [], [], m5=m5(8.0), art=art(2.5))
     assert any("5-minute" in b for b in a["blocks"])
+
+
+def _ctx(prior):
+    from core.models import MarketContext
+    now = datetime(2024, 3, 13, 16, 0, tzinfo=timezone.utc)
+    return MarketContext(generated_at=now, analysis_tf="15m", futures_gap=0.0, futures_last=100.0,
+                         futures_last_age_s=0, prior=prior)
+
+
+def _run_coach(monkeypatch, prior, mode="advisory"):
+    import asyncio
+    from agents import news_intel, psychology
+    from core import track
+    monkeypatch.setenv("NEWSINTEL_MODE", mode)
+    monkeypatch.setattr(track, "discipline_stats", lambda *a, **k: dict(STATS))
+    monkeypatch.setattr(news_intel, "artifacts", lambda: art())
+    return asyncio.run(psychology.PsychologyAgent().analyze(_ctx(prior)))
+
+
+def _news_result(uncertain):
+    from core.models import AgentResult
+    t = int(datetime(2024, 3, 13, 15, 0, tzinfo=timezone.utc).timestamp())
+    return AgentResult(agent="news_intel", label="News", status="OK", bias="WAIT", confidence=0,
+                       extra={"phase": "post", "uncertain": uncertain, "event": {"kind": "CPI", "t": t}})
+
+
+def test_live_coach_uncertain_gate(db, monkeypatch):
+    r = _run_coach(monkeypatch, [_news_result(True)])
+    assert any("uncertain" in w for w in r.warnings)
+    assert not any("uncertain" in w for w in _run_coach(monkeypatch, [_news_result(False)]).warnings)
+    assert not any("uncertain" in w for w in _run_coach(monkeypatch, []).warnings)
+    assert not any("uncertain" in w for w in _run_coach(monkeypatch, [_news_result(True)], mode="off").warnings)

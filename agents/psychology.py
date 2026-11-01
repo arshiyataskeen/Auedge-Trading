@@ -114,8 +114,10 @@ class PsychologyAgent(BaseAgent):
             m5 = live._done(live._m5_set(ctx), 300, int(ctx.generated_at.timestamp())) or None
         except Exception:  # noqa: BLE001 - the gate is optional; the other rules still run
             m5 = None
+        from core.newsintel.mode import NEWS_AGENT
+        intel = next((r.extra for r in (ctx.prior or []) if r.agent == NEWS_AGENT), None) or None
         a = assess(stats, ctx.generated_at.astimezone(timezone.utc), m15.candles if m15 else [], h1.candles if h1 else [],
-                   m5=m5)
+                   m5=m5, intel=intel)
         if a["blocks"]:
             label, head = "STOP", a["blocks"][0]
         elif a["warns"]:

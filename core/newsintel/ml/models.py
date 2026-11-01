@@ -14,6 +14,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
 from .data import CLASSES, Dataset
+from .metrics import log_loss
 from .split import inner_folds
 
 N_CLASSES = len(CLASSES)
@@ -40,11 +41,6 @@ def _to_classes(raw: np.ndarray, classes) -> np.ndarray:
     p = np.full((len(raw), N_CLASSES), ABSENT)
     p[:, np.asarray(classes, dtype=int)] = np.maximum(raw, ABSENT)  # KNN/forest can give exact zeros
     return p / p.sum(axis=1, keepdims=True)
-
-
-def _log_loss(p: np.ndarray, y: np.ndarray) -> float:
-    p = np.clip(p, 1e-15, 1.0)
-    return float(-np.mean(np.log(p[np.arange(len(y)), y])))
 
 
 class Climatology:
@@ -154,7 +150,7 @@ def tune(model_cls, grid, ds: Dataset, train_idx) -> Model:
     grid = list(grid)
     best, best_loss = grid[0], np.inf
     for g in grid:
-        losses = [_log_loss(model_cls(g).fit(ds, tr).predict_proba(ds, va), ds.y[va])
+        losses = [log_loss(model_cls(g).fit(ds, tr).predict_proba(ds, va), ds.y[va])
                   for tr, va in inner_folds(train_idx) if len(tr) and len(va)]
         loss = float(np.mean(losses)) if losses else np.inf
         if loss < best_loss:

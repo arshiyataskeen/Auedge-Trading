@@ -34,7 +34,13 @@ DAY_MAX_LOSS = 350.0            # dollars per trading day: stop for the day at t
 DAY_MAX_PROFIT = 150.0          # dollars per trading day: stop for the day at this profit
 
 
-def assess(stats: dict, now_utc, m15: list, h1: list) -> dict:
+def _gates_on() -> bool:
+    from core.newsintel.mode import mode
+    return mode() != "off"
+
+
+def assess(stats: dict, now_utc, m15: list, h1: list, m5: list | None = None, spread: float | None = None,
+           intel: dict | None = None, art=None, spread_median: float | None = None) -> dict:
     """Pure rule check (no I/O), so the backtest can reuse it. Returns blocks, warnings, chase flag and a score."""
     blocks, warns, rows = [], [], []
     now_s = now_utc.timestamp()
@@ -63,6 +69,14 @@ def assess(stats: dict, now_utc, m15: list, h1: list) -> dict:
     ev = news.blackout(now_s)
     if ev:
         blocks.append(f"News: {news.label(ev, now_s)}. No new trades around it; spreads widen and price whips both ways.")
+    if (m5 is not None or spread is not None or intel is not None) and _gates_on():
+        from core.newsintel import gates
+        if art is None:
+            from agents.news_intel import artifacts
+            art = artifacts()
+        g = gates.avoid(now_s, m5, spread, spread_median, intel, art)
+        if g and not (g[0] == "calendar" and ev):
+            blocks.append(f"News gate ({g[0]}): {g[1]}")
     nxt = [e for e in news.upcoming(now_s, 24 * 7) if e["t"] > now_s]
     if nxt:
         rows.append(["Next big news", news.label(nxt[0], now_s)])
@@ -94,7 +108,14 @@ class PsychologyAgent(BaseAgent):
     async def analyze(self, ctx):
         stats = track.discipline_stats(ctx.generated_at.timestamp(), LOT)
         m15, h1 = ctx.struct("15m"), ctx.struct("1h")
-        a = assess(stats, ctx.generated_at.astimezone(timezone.utc), m15.candles if m15 else [], h1.candles if h1 else [])
+        m5 = None
+        try:
+            from core.newsintel import live
+            m5 = live._done(live._m5_set(ctx), 300, int(ctx.generated_at.timestamp())) or None
+        except Exception:  # noqa: BLE001 - the gate is optional; the other rules still run
+            m5 = None
+        a = assess(stats, ctx.generated_at.astimezone(timezone.utc), m15.candles if m15 else [], h1.candles if h1 else [],
+                   m5=m5)
         if a["blocks"]:
             label, head = "STOP", a["blocks"][0]
         elif a["warns"]:

@@ -29,6 +29,7 @@ import httpx
 
 from agents import BUILT_IN, DATA_CHECK
 from agents import news_intel as _news_intel
+from core.newsintel import gates
 from agents.base import run_agent
 from agents.chief import chief, today_view
 from core.snapshot import snap
@@ -391,8 +392,31 @@ def quality_block(T: int, rep) -> str | None:
     return None
 
 
+def _news_mode() -> str:
+    from core.newsintel.mode import mode
+    return mode()
+
+
+def _intel_of(results) -> dict | None:
+    """The News intelligence agent's extra (phase, uncertain, event) from this step's results, if any."""
+    for r in results or []:
+        if getattr(r, "agent", None) == "news_intel":
+            return getattr(r, "extra", None) or None
+    return None
+
+
+def _m5_of(ctx, T: int):
+    """Finished 5-minute candles in ctx (none in a replay: the history only holds 15m, so the volatility gate
+    cannot fire in backtests)."""
+    try:
+        from core.newsintel import live
+        return live._done(live._m5_set(ctx), 300, int(T)) or None if ctx is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def block_reason(T: int, opened: dict, day_pnl: dict | None = None, risk_usd: float = 0.0, live: dict | None = None,
-                 ctx: MarketContext | None = None, rep=None) -> str | None:
+                 ctx: MarketContext | None = None, rep=None, intel: dict | None = None) -> str | None:
     """Why a new trade may not open at T (same rules as the live Discipline coach), or None: Friday afternoon
     (New York), the daily trade cap, the daily dollar loss limit / profit target, or a high-impact news window."""
     ny = datetime.fromtimestamp(T, NY)
@@ -407,8 +431,13 @@ def block_reason(T: int, opened: dict, day_pnl: dict | None = None, risk_usd: fl
         return "day_loss_room"          # if this trade's stop is hit, the day would end beyond the loss limit
     if SETTINGS.get("day_max_profit") and pnl >= SETTINGS["day_max_profit"]:
         return "day_profit_target"
-    if SETTINGS.get("news", True) and news.blackout(T):
-        return "news"
+    if SETTINGS.get("news", True):
+        if news.blackout(T):
+            return "news"
+        if _news_mode() != "off":
+            g = gates.avoid(T, _m5_of(ctx, T), None, None, intel, _news_intel.artifacts())
+            if g:
+                return "news_" + g[0]
     if live is not None and SETTINGS.get("live_rules", True):
         if live["losses"].get(session_day(T), 0) >= MAX_LOSSES_PER_DAY:
             return "two_losses"
@@ -483,7 +512,7 @@ async def run(hist: History, spread: float, days: float | None, start_t: int | N
             if pending and (direction != pending["plan"].side):
                 pending, counts["pending_cancelled"] = None, counts["pending_cancelled"] + 1   # bias changed
             why_block = (block_reason(T, opened, day_pnl, abs((plan.entry_lo + plan.entry_hi) / 2 - plan.stop) * 100 * SETTINGS["lot"],
-                                      live, ctx, rep)
+                                      live, ctx, rep, _intel_of(results))
                          if plan.kind == "now" and plan.stop and plan.t1 else None)
             if why_block:
                 counts["blocked_" + why_block] = counts.get("blocked_" + why_block, 0) + 1
@@ -803,7 +832,7 @@ async def run_hourly(hist: History, spread: float, start_t: int | None = None, e
                         "atr1h": (atr(h1w)[-1] or 0) if len(h1w) > 20 else 0,
                         "biases": {r.agent: r.bias for r in results}}
             why_block = (block_reason(T, opened, day_pnl, abs((plan.entry_lo + plan.entry_hi) / 2 - plan.stop) * 100 * SETTINGS["lot"],
-                                      live, ctx, rep)
+                                      live, ctx, rep, _intel_of(results))
                          if plan.kind == "now" and plan.stop and plan.t1 else None)
             if why_block:
                 counts["blocked_" + why_block] = counts.get("blocked_" + why_block, 0) + 1

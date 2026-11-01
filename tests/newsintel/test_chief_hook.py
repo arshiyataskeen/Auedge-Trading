@@ -38,7 +38,7 @@ def test_advisory_only_adds_reason():
     before = r.model_dump()
     apply_news(r, _news("advisory", up=0.1, down=0.8))
     after = r.model_dump()
-    assert len(after["reasons"]) == 2 and "$12.50" in after["reasons"][1] and "similar past releases" in after["reasons"][1]
+    assert len(after["reasons"]) == 2 and "typical first-hour move about $12.50 (range 8.00–20.00)" in after["reasons"][1] and "expect" not in after["reasons"][1] and after["reasons"][1].startswith("News (advisory)") and "similar past releases" in after["reasons"][1]
     after["reasons"] = before["reasons"]
     assert after == before
 
@@ -54,6 +54,42 @@ def test_live_weak_side_turns_wait():
     r = _rep("BUY")
     apply_news(r, _news("live", up=0.2, down=0.5))
     assert r.bias == "WAIT" and r.plan.kind == "none" and r.plan.action == "WAIT (news view disagrees)"
+    assert r.confidence == 40 and r.confidence_word == "Low"
+    r = _rep("BUY", conf=30)
+    apply_news(r, _news("live", up=0.2, down=0.5))
+    assert r.confidence == 30
+
+
+def test_live_prefix():
+    r = _rep()
+    apply_news(r, _news("live", up=0.5, down=0.2))
+    assert r.reasons[1].startswith("News (live):")
+
+
+def test_live_missing_probs_only_reason():
+    r = _rep()
+    before = r.model_dump()
+    n = _news("live")
+    n.extra["probs"] = None
+    apply_news(r, n)
+    after = r.model_dump()
+    assert len(after["reasons"]) == 2
+    after["reasons"] = before["reasons"]
+    assert after == before
+
+
+def test_live_boost_and_uncertain_together():
+    r = _rep("BUY", conf=60)
+    apply_news(r, _news("live", up=0.7, down=0.1, uncertain=True))
+    assert r.confidence == 55
+
+
+def test_apply_from_results_swallows(monkeypatch, capsys):
+    import core.newsintel.chief_hook as h
+    monkeypatch.setattr(h, "apply_news", lambda *a: 1 / 0)
+    r = _rep()
+    h.apply_from_results(r, [_news()])
+    assert r.confidence == 60 and "chief hook skipped" in capsys.readouterr().err
 
 
 def test_live_cap():

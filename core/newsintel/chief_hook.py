@@ -12,7 +12,11 @@ BOOST = 5
 UNCERTAIN_PENALTY = 10
 
 
-def _line(ex: dict) -> str | None:
+def _word(c: int) -> str:   # same thresholds as agents/chief.py
+    return "High" if c >= 70 else "Medium" if c >= 50 else "Low"
+
+
+def _line(ex: dict, label: str) -> str | None:
     ev = ex.get("event")
     probs = ex.get("probs")
     move = ex.get("expected_move")
@@ -20,7 +24,7 @@ def _line(ex: dict) -> str | None:
         return None
     kind = ev.get("kind") or ev.get("name") or "the release"
     when = "after" if ex.get("phase") == "post" else "before"
-    s = f"News (advisory): {when} {kind} expect about ${move:.2f} in the first hour"
+    s = f"News ({label}): {when} {kind}, typical first-hour move about ${move:.2f}"
     rng = ex.get("expected_range")
     if rng and len(rng) == 2:
         s += f" (range {rng[0]:,.2f}\u2013{rng[1]:,.2f})"
@@ -41,7 +45,7 @@ def apply_news(rep, news) -> None:
     eff = ex.get("mode")
     if eff not in ("advisory", "live"):
         return
-    line = _line(ex)
+    line = _line(ex, eff)
     if line is None:
         return
     rep.reasons = [*rep.reasons, line]
@@ -57,6 +61,8 @@ def apply_news(rep, news) -> None:
         rep.bias = "WAIT"
         rep.plan = TradePlan(kind="none", action="WAIT (news view disagrees)",
                              steps=["The news view disagrees with this call: wait."])
+        rep.confidence = min(rep.confidence, 40)
+        rep.confidence_word = _word(rep.confidence)
         rep.reasons.append("News (live): the chance of this side is low, so the call is turned into WAIT.")
         return
     conf = rep.confidence
@@ -65,7 +71,7 @@ def apply_news(rep, news) -> None:
     if ex.get("uncertain"):
         conf = max(0, conf - UNCERTAIN_PENALTY)
     rep.confidence = conf
-    rep.confidence_word = "High" if conf >= 70 else "Medium" if conf >= 50 else "Low"
+    rep.confidence_word = _word(conf)
 
 
 def apply_from_results(rep, results) -> None:

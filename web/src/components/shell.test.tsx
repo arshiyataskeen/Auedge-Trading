@@ -115,13 +115,14 @@ describe('TopBar live price', () => {
 })
 
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { routes } from '../routes'
 
 describe('routes', () => {
   it('redirects / to the dashboard inside the shell with one main#page', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
-    render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: ['/'] })} />)
-    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    render(<QueryClientProvider client={new QueryClient()}><RouterProvider router={createMemoryRouter(routes, { initialEntries: ['/'] })} /></QueryClientProvider>)
+    expect(await screen.findByRole('heading', { name: 'My accounts' })).toBeInTheDocument()
     expect(document.querySelectorAll('main#page')).toHaveLength(1)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
   })

@@ -164,7 +164,7 @@ export type PhaseRules = {
 }
 export type AccountRules = { phases: PhaseRules[]; funded: PhaseRules; reset: string; daily_base: string }
 export type PhaseCheck = {
-  rules: PhaseRules; status: string; breach: unknown; balance: number; profit: number
+  rules: PhaseRules; status: string; breach: { text: string } | null; balance: number; profit: number
   target_amt: number | null; target_left: number | null; days_traded: number; min_days: number
   daily_limit: number | null; today_pnl: number; daily_room: number | null; max_floor: number | null; max_room: number | null
   equity: [number, number][]; days: { day: string; pnl: number; n: number }[]
@@ -185,6 +185,8 @@ export type JournalTrade = {
 export type JournalAccount = {
   id: number; name: string; firm: string; size: number; created_at: number; rules: AccountRules; notes: string
   archived: number; phases: Phase[]; current?: Phase | null; total_phases?: number; trades?: JournalTrade[]
+  /** list endpoint only */
+  n_trades?: number; last_trade_at?: number | null
   error?: string
 }
 export type JournalAccounts = { accounts: JournalAccount[]; now: number }

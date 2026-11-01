@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
 import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts'
 import type { SeriesMarker, UTCTimestamp } from 'lightweight-charts'
 import { useCandles } from '../api/endpoints'
@@ -24,7 +23,9 @@ export default function TradeReplay({ trade, src, lot = 0.1, onClose }: Props) {
   const t = useMemo(() => {
     const entry_t = Math.floor(trade.entry_t)
     return { ...trade, entry_t, decided_t: Math.floor(trade.decided_t || entry_t), exit_t: Math.floor(trade.exit_t || Date.now() / 1000) }
-  }, [trade])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trade.entry_t, trade.exit_t, trade.decided_t, trade.side, trade.entry, trade.stop, trade.t1, trade.exit,
+    trade.why, trade.r, trade.usd, trade.kind, trade.open, trade.gap])
   const s = t.side === 'BUY' ? 1 : -1
   const risk = Math.abs(t.entry - t.stop)
   const be = t.entry + s * risk
@@ -44,15 +45,25 @@ export default function TradeReplay({ trade, src, lot = 0.1, onClose }: Props) {
     return () => prev?.focus?.()
   }, [])
 
-  function onKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') { e.stopPropagation(); onClose(); return }
-    if (e.key !== 'Tab') return
-    const f = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, [href], [tabindex]:not([tabindex="-1"])') ?? [])]
-    if (!f.length) return
-    const first = f[0], last = f[f.length - 1], a = document.activeElement
-    if (e.shiftKey && (a === first || !dialogRef.current?.contains(a))) { e.preventDefault(); last.focus() }
-    else if (!e.shiftKey && (a === last || !dialogRef.current?.contains(a))) { e.preventDefault(); first.focus() }
-  }
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  // Document-level so Escape and Tab work even when focus has fallen to <body> (click on non-focusable content).
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); return }
+      if (e.key !== 'Tab') return
+      const dlg = dialogRef.current
+      if (!dlg) return
+      const f = [...dlg.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, [href], [tabindex]:not([tabindex="-1"])')]
+      if (!f.length) return
+      const first = f[0], last = f[f.length - 1], a = document.activeElement
+      const inside = !!a && dlg.contains(a)
+      if (e.shiftKey && (a === first || !inside)) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && (a === last || !inside)) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 
   let body
   if (q.isError) body = <Message text={(q.error as Error).message} />
@@ -64,7 +75,7 @@ export default function TradeReplay({ trade, src, lot = 0.1, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Trade replay" onKeyDown={onKeyDown}
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Trade replay" tabIndex={-1}
         className="relative max-h-[94vh] w-[min(720px,94vw)] overflow-y-auto rounded-md border border-line2 bg-panel2 p-4 text-text">
         <button ref={closeRef} type="button" aria-label="Close replay" onClick={onClose}
           className="absolute right-2 top-2 h-8 w-8 rounded text-[18px] text-muted hover:bg-hover">×</button>

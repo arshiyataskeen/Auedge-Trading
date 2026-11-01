@@ -168,3 +168,44 @@ it('replay is closable with Escape and keeps focus inside', async () => {
   fireEvent.keyDown(close, { key: 'Escape' })
   expect(onClose).toHaveBeenCalledTimes(1)
 })
+
+it('Escape and Tab still work when focus has fallen to body', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(candles(5))))
+  const onClose = vi.fn()
+  mount(<TradeReplay trade={trade} onClose={onClose} />)
+  await waitFor(() => expect(m.createChart).toHaveBeenCalled())
+  const dlg = screen.getByRole('dialog')
+  expect(dlg).toHaveAttribute('tabindex', '-1')
+  ;(document.activeElement as HTMLElement).blur()
+  expect(document.body).toHaveFocus()
+  fireEvent.keyDown(document.body, { key: 'Tab' })
+  expect(dlg.contains(document.activeElement)).toBe(true)
+  ;(document.activeElement as HTMLElement).blur()
+  fireEvent.keyDown(document.body, { key: 'Escape' })
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('a new parent trade object with the same values does not refetch or rebuild the chart', async () => {
+  const f = vi.fn().mockResolvedValue(json(candles(5)))
+  vi.stubGlobal('fetch', f)
+  const ui = (tr: BtTrade) => <QueryClientProvider client={qc}>{<TradeReplay trade={tr} onClose={() => {}} />}</QueryClientProvider>
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const { rerender } = render(ui(trade))
+  await waitFor(() => expect(m.createChart).toHaveBeenCalledTimes(1))
+  rerender(ui({ ...trade }))
+  expect(f).toHaveBeenCalledTimes(1)
+  expect(m.createChart).toHaveBeenCalledTimes(1)
+  expect(m.chart.remove).not.toHaveBeenCalled()
+})
+
+it('unmounting while playing leaves no active timers', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(candles(12))))
+  // gcTime Infinity: react-query's own cache-gc timer is not ours
+  const { unmount } = render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })}><TradeReplay trade={trade} onClose={() => {}} /></QueryClientProvider>)
+  await waitFor(() => expect(m.createChart).toHaveBeenCalled())
+  vi.useFakeTimers()
+  fireEvent.click(screen.getByRole('button', { name: '▶ Play' }))
+  expect(vi.getTimerCount()).toBeGreaterThan(0)
+  unmount()
+  expect(vi.getTimerCount()).toBe(0)
+})

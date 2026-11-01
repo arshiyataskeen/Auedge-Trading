@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAdvancePhase, useDemo, useJournalAccount, useJournalAccounts, useReopenPhase, useUpdateAccount } from '../../api/endpoints'
 import type { JournalAccount, JournalTrade, Phase } from '../../api/types'
 import EquityChart from '../../components/EquityChart'
@@ -16,7 +16,7 @@ import JCalendar from './JCalendar'
 import { jDay } from './logic'
 import RiskReward from './RiskReward'
 import TradeForm from './TradeForm'
-import { Alert, btnCls, btnPrimaryCls, Card, DayBars, linkBtn, Meta, Sect, Stat, TradeList } from './ui'
+import { Alert, btnCls, btnPrimaryCls, Card, DayBars, linkBtn, Meta, Sect, Stat, TradeTable } from './ui'
 
 const SUBS = [{ key: 'journal', label: 'Journal' }, { key: 'calendar', label: 'Calendar' }, { key: 'rr', label: 'Risk : Reward' }, { key: 'consistency', label: 'Consistency' }]
 
@@ -71,6 +71,7 @@ type Form = { k: 'trade'; trade?: JournalTrade } | { k: 'edit' } | null
 
 /** Port of openAccount / renderAccount. */
 function AccountView({ a }: { a: JournalAccount }) {
+  const nav = useNavigate()
   const all = useJournalAccounts(true)
   const demo = useDemo()
   const [phaseId, setPhaseId] = useState<number | null>(null)
@@ -167,7 +168,7 @@ function AccountView({ a }: { a: JournalAccount }) {
               <Card>
                 <Sect>Journal · {phName} · newest first · click a trade to open it</Sect>
                 {trades.length
-                  ? <TradeList trades={trades} onOpen={(t) => setForm({ k: 'trade', trade: t })} />
+                  ? <TradeTable trades={trades} plan onOpen={(t) => setForm({ k: 'trade', trade: t })} />
                   : <Meta>No trades in this phase yet. <button type="button" className={linkBtn} onClick={() => setForm({ k: 'trade' })}>Add your first trade</button></Meta>}
               </Card>
             </div>
@@ -221,7 +222,10 @@ function AccountView({ a }: { a: JournalAccount }) {
       </div>
       {form?.k === 'trade' && (
         <TradeForm trade={form.trade} accounts={pool} accountId={a.id} knownSetups={known as string[]} onClose={() => setForm(null)}
-          onSaved={(b) => { if (b.account_id === a.id && typeof b.phase_id === 'number') setPhaseId(b.phase_id) }} />
+          onSaved={(b) => {
+            if (b.account_id !== a.id) { if (typeof b.account_id === 'number') nav(`/journal/${b.account_id}`) } // moved to another account
+            else if (typeof b.phase_id === 'number') setPhaseId(b.phase_id)
+          }} />
       )}
       {form?.k === 'edit' && <AccountForm account={a} onClose={() => setForm(null)} onSaved={() => { /* queries refresh via invalidation */ }} />}
     </div>

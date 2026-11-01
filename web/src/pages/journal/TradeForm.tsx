@@ -6,11 +6,7 @@ import { money } from '../../lib/format'
 import {
   EMOTIONS, initialTrade, jDate, readImage, riskNumbers, SETUPS, tradeBody, type TradeFormState, type TradeValues,
 } from './logic'
-import { btnCls, btnPrimaryCls, inputCls, linkBtn, Meta } from './ui'
-
-const L = ({ t, children, title }: { t: string; children: ReactNode; title?: string }) =>
-  <label title={title} className="flex flex-col gap-0.5 text-[11px] text-muted"><span>{t}</span>{children}</label>
-const seg = (on: boolean) => `rounded border px-2.5 py-1 text-[12px] ${on ? 'border-accent bg-acc-bg text-strong' : 'border-line bg-panel text-muted hover:bg-hover'}`
+import { btnCls, btnPrimaryCls, Field, inputCls, linkBtn, Meta, segCls } from './ui'
 
 type Props = {
   /** the trade being edited (none = add) */
@@ -32,7 +28,9 @@ export default function TradeForm({ trade: t, prefill, accounts, accountId, know
   const v = useMemo<TradeValues>(() => ({ side: 'BUY', symbol: 'XAUUSD', opened_at: Math.round(Date.now() / 1000), ...prefill, ...t }), [prefill, t])
   const pool = useMemo(() => (accounts ?? []).filter((a) => t || (!a.archived && a.current && !a.current.result)), [accounts, t])
   const accId = t ? t.account_id : (accountId != null && pool.some((a) => a.id === accountId) ? accountId : pool[0]?.id)
-  const defPhase = (a: JournalAccount | undefined) => (t && a?.id === t.account_id ? t.phase_id : a?.phases.find((p) => !p.result)?.id)
+  // the trade's own phase on its own account; otherwise the open phase, else the first phase (never empty -> phase_id 0)
+  const defPhase = (a: JournalAccount | undefined) =>
+    (t && a?.id === t.account_id ? t.phase_id : (a?.phases.find((p) => !p.result) ?? a?.phases[0])?.id)
   const [f, setF] = useState<TradeFormState>(() => initialTrade(v, accId, defPhase(pool.find((a) => a.id === accId))))
   const [err, setErr] = useState('')
   const create = useCreateTrade(), update = useUpdateTrade(), del = useDeleteTrade()
@@ -88,15 +86,15 @@ export default function TradeForm({ trade: t, prefill, accounts, accountId, know
   }
   const known = [...new Set([...SETUPS, ...knownSetups])]
   const inp = (k: keyof TradeFormState, label: string, o: { step?: string; w?: number; type?: string; title?: string; ph?: string } = {}) => (
-    <L t={label} title={o.title}>
+    <Field t={label} title={o.title}>
       <input type={o.type ?? 'number'} step={o.type ? undefined : (o.step ?? '0.01')} style={o.w ? { width: o.w } : undefined} className={inputCls}
         value={f[k] as string} placeholder={o.ph} onChange={(e) => set(k, e.target.value as never)} />
-    </L>
+    </Field>
   )
   const savedImg = t?.image && f.image == null
   const hints: ReactNode[] = []
   if (risk) {
-    if (risk.risk != null) hints.push(<>Risk if the stop is hit: <b>${risk.risk.toFixed(0)}</b> ({risk.riskPct!.toFixed(2)}% of the account)</>)
+    if (risk.risk != null) hints.push(<>Risk if the stop is hit: <b>{money(risk.risk, { sign: false })}</b> ({risk.riskPct!.toFixed(2)}% of the account)</>)
     if (risk.room != null) {
       hints.push(risk.over ? <span className="text-down">more than today's loss room ({money(risk.room, { sign: false })})!</span>
         : <>today's loss room left: {money(risk.room, { sign: false })}</>)
@@ -109,24 +107,24 @@ export default function TradeForm({ trade: t, prefill, accounts, accountId, know
       <h2 className="mb-3 pr-9 text-[16px] font-bold text-strong">{title}</h2>
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
-          <L t="Account">
+          <Field t="Account">
             <select className={inputCls} value={f.acc} onChange={(e) => {
               const a = pool.find((x) => x.id === +e.target.value)
-              setF((s) => ({ ...s, acc: e.target.value, phase: String(a?.phases.find((p) => !p.result)?.id ?? '') }))
+              setF((s) => ({ ...s, acc: e.target.value, phase: String(defPhase(a) ?? '') }))
             }}>
               {pool.map((a) => <option key={a.id} value={a.id}>{a.name}{a.archived ? ' (archived)' : ''}</option>)}
             </select>
-          </L>
-          <L t="Phase">
+          </Field>
+          <Field t="Phase">
             <select className={inputCls} value={f.phase} onChange={(e) => set('phase', e.target.value)}>
               {(acc?.phases ?? []).map((p) => <option key={p.id} value={p.id}>{p.is_funded ? 'Funded' : p.name}{p.result ? ` (${p.result})` : ''}</option>)}
             </select>
-          </L>
+          </Field>
           {inp('symbol', 'Symbol', { type: 'text', w: 90 })}
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex gap-1" role="group" aria-label="Side">
-            {(['BUY', 'SELL'] as const).map((s) => <button key={s} type="button" aria-pressed={f.side === s} className={seg(f.side === s)} onClick={() => set('side', s)}>{s}</button>)}
+            {(['BUY', 'SELL'] as const).map((s) => <button key={s} type="button" aria-pressed={f.side === s} className={segCls(f.side === s)} onClick={() => set('side', s)}>{s}</button>)}
           </div>
           {inp('opened', 'Opened', { type: 'datetime-local' })}
           {inp('closed', 'Closed', { type: 'datetime-local' })}
@@ -138,16 +136,16 @@ export default function TradeForm({ trade: t, prefill, accounts, accountId, know
         <div className="flex flex-wrap items-end gap-3">
           {inp('pnl', 'P&L $', { title: "Your broker's real profit/loss. Leave empty to work it out from entry, exit and lots.", ph: 'auto', w: 100 })}
           {inp('com', 'Commission $', { w: 100 })}
-          <L t="Setup">
+          <Field t="Setup">
             <input list="jtSetups" className={`${inputCls} w-[170px]`} value={f.setup} onChange={(e) => set('setup', e.target.value)} />
             <datalist id="jtSetups">{known.map((x) => <option key={x} value={x} />)}</datalist>
-          </L>
+          </Field>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[12px]">
           <span>Followed my plan?</span>
           <div className="flex gap-1" role="group" aria-label="Followed my plan">
             {([['Yes', 1], ['No', 0]] as const).map(([l, n]) => (
-              <button key={l} type="button" aria-pressed={f.plan === n} className={seg(f.plan === n)} onClick={() => set('plan', f.plan === n ? null : n)}>{l}</button>
+              <button key={l} type="button" aria-pressed={f.plan === n} className={segCls(f.plan === n)} onClick={() => set('plan', f.plan === n ? null : n)}>{l}</button>
             ))}
           </div>
           <span>Rating</span>
@@ -160,16 +158,16 @@ export default function TradeForm({ trade: t, prefill, accounts, accountId, know
         </div>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Mood">
           <span className="mr-1 text-[12px]">Mood</span>
-          {EMOTIONS.map((e) => <button key={e} type="button" aria-pressed={f.mood === e} className={seg(f.mood === e)} onClick={() => set('mood', f.mood === e ? null : e)}>{e}</button>)}
+          {EMOTIONS.map((e) => <button key={e} type="button" aria-pressed={f.mood === e} className={segCls(f.mood === e)} onClick={() => set('mood', f.mood === e ? null : e)}>{e}</button>)}
         </div>
         <label className="block text-[11.5px] text-muted">Mistakes / lessons
           <textarea rows={2} className={`${inputCls} mt-0.5 block w-full`} value={f.mist} onChange={(e) => set('mist', e.target.value)} /></label>
         <label className="block text-[11.5px] text-muted">Notes
           <textarea rows={3} className={`${inputCls} mt-0.5 block w-full`} value={f.notes} onChange={(e) => set('notes', e.target.value)} /></label>
         <div className="flex flex-wrap items-center gap-3">
-          <L t="Screenshot">
+          <Field t="Screenshot">
             <input type="file" accept="image/png,image/jpeg,image/webp" className="text-[12px]" onChange={(e) => void pickImage(e.target.files?.[0])} />
-          </L>
+          </Field>
           <Meta>or paste an image (Ctrl+V) while this form is open</Meta>
         </div>
         <div>

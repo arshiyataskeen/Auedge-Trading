@@ -119,7 +119,7 @@ it('a server {ok:false} reply is shown inside the account form, which stays open
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 })
 
-it('the trade form posts the same body as the old tradeBody() and closes on Escape', async () => {
+it('the trade form posts the same body as the old tradeBody() and closes after saving', async () => {
   mockApi()
   mount('/journal')
   fireEvent.click(await screen.findByRole('button', { name: '＋ Add trade' }))
@@ -145,7 +145,7 @@ it('the trade form posts the same body as the old tradeBody() and closes on Esca
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-it('Escape closes a form and focus stays inside the dialog on Tab', async () => {
+it('Escape closes the account form and focus stays inside the dialog on Tab', async () => {
   mockApi()
   mount('/journal?new=1')
   const dlg = await screen.findByRole('dialog')
@@ -154,6 +154,16 @@ it('Escape closes a form and focus stays inside the dialog on Tab', async () => 
   expect(dlg.contains(document.activeElement)).toBe(true)
   fireEvent.keyDown(document.body, { key: 'Escape' })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+it('Escape closes the trade form without saving', async () => {
+  mockApi()
+  mount('/journal')
+  fireEvent.click(await screen.findByRole('button', { name: '＋ Add trade' }))
+  const dlg = await screen.findByRole('dialog', { name: 'Add trade' })
+  fireEvent.keyDown(dlg, { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(calls.some((c) => c.method === 'POST')).toBe(false)
 })
 
 it('a screenshot is read to a data URL and sent as image_data; over 6 MB is refused', async () => {
@@ -246,9 +256,9 @@ it('a trade row opens its form from the keyboard and Delete calls DELETE after c
   mockApi()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   mount('/journal/5')
-  const row = (await screen.findByText('Breakout', { selector: 'span' })).closest('button')!
-  expect(row.tagName).toBe('BUTTON')
-  fireEvent.click(row)
+  const row = (await screen.findByText('Breakout', { selector: 'span' })).closest('tr')!
+  expect(row).toHaveAttribute('tabindex', '0')
+  fireEvent.keyDown(row, { key: 'Enter' })
   const dlg = await screen.findByRole('dialog', { name: 'Trade' })
   expect(within(dlg).getByLabelText('Entry')).toHaveValue(2000)
   fireEvent.click(within(dlg).getByRole('button', { name: 'Delete trade' }))
@@ -258,7 +268,7 @@ it('a trade row opens its form from the keyboard and Delete calls DELETE after c
 it('editing a trade PUTs to its id', async () => {
   mockApi()
   mount('/journal/5')
-  fireEvent.click((await screen.findByText('Breakout', { selector: 'span' })).closest('button')!)
+  fireEvent.keyDown((await screen.findByText('Breakout', { selector: 'span' })).closest('tr')!, { key: ' ' })
   const dlg = await screen.findByRole('dialog')
   typeInto('Exit', '2015')
   fireEvent.click(within(dlg).getByRole('button', { name: 'Save' }))
@@ -305,6 +315,83 @@ it('Archive PUTs the old body', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
   await waitFor(() => expect(posted('PUT', '/api/journal/accounts/5')).toBeTruthy())
   expect(posted('PUT', '/api/journal/accounts/5')!.body).toEqual({ name: 'FTMO 10k', firm: 'FTMO', notes: '', archived: true })
+})
+
+const ACC5two = accOf([phase(1, 0, { result: 'passed' }), phase(2, 1)])
+const ACC6 = (o: Record<string, unknown> = {}) => accOf([phase(20, 0, { account_id: 6, ...o })], { id: 6, name: 'Other 5k' })
+const T3 = trade(13, { account_id: 5, net: -20, r: -0.2, setup: 'Range fade', day: '2026-09-15', notes: '' })
+
+it('editing: an account with no open phase falls back to a real phase id, and switching back restores the trade phase', async () => {
+  mockApi({ 'GET /api/journal/accounts': () => ({ accounts: [ACC5two, ACC6({ result: 'passed' })], now: NOW }) })
+  mount('/journal')
+  fireEvent.keyDown((await screen.findByText('Breakout', { selector: 'span' })).closest('tr')!, { key: 'Enter' })
+  const dlg = await screen.findByRole('dialog', { name: 'Trade' })
+  const phaseSel = within(dlg).getByLabelText('Phase')
+  await waitFor(() => expect(phaseSel).toHaveValue('1'))
+  fireEvent.change(within(dlg).getByLabelText('Account'), { target: { value: '6' } })
+  expect(phaseSel).toHaveValue('20')
+  fireEvent.change(within(dlg).getByLabelText('Account'), { target: { value: '5' } })
+  expect(phaseSel).toHaveValue('1') // the trade's own phase, not the open Phase 2
+  fireEvent.change(within(dlg).getByLabelText('Account'), { target: { value: '6' } })
+  fireEvent.click(within(dlg).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(posted('PUT', '/api/journal/trades/11')).toBeTruthy())
+  expect(posted('PUT', '/api/journal/trades/11')!.body).toMatchObject({ account_id: 6, phase_id: 20 })
+})
+
+it('a trade moved to another account takes you to that account after saving', async () => {
+  mockApi({ 'GET /api/journal/accounts': () => ({ accounts: [ACC, ACC6()], now: NOW }) })
+  mount('/journal/5')
+  fireEvent.keyDown((await screen.findByText('Breakout', { selector: 'span' })).closest('tr')!, { key: 'Enter' })
+  const dlg = await screen.findByRole('dialog', { name: 'Trade' })
+  await waitFor(() => expect(within(dlg).getByLabelText('Account')).toHaveValue('5'))
+  fireEvent.change(within(dlg).getByLabelText('Account'), { target: { value: '6' } })
+  fireEvent.click(within(dlg).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/journal/6'))
+})
+
+it('the risk text has a thousands separator', async () => {
+  mockApi()
+  mount('/journal')
+  fireEvent.click(await screen.findByRole('button', { name: '＋ Add trade' }))
+  await screen.findByRole('dialog')
+  typeInto('Lots', '1'); typeInto('Entry', '2000'); typeInto('Stop', '1900')
+  expect(await screen.findByText(/Risk if the stop is hit:/)).toHaveTextContent('Risk if the stop is hit: $10,000 (100.00% of the account)')
+})
+
+it('All records is a headed table with the old columns, AuEdge chip under Side, and a back link', async () => {
+  mockApi({ 'GET /api/journal/trades': () => ({ trades: [trade(11, { source: 'auedge' }), T2] }) })
+  mount('/journal')
+  await screen.findByText('Breakout', { selector: 'span' })
+  expect(screen.getByRole('link', { name: '← All accounts' })).toHaveAttribute('href', '/dashboard')
+  const table = screen.getByRole('table')
+  expect(within(table).getAllByRole('columnheader').map((h) => h.textContent))
+    .toEqual(['Opened', 'Account', 'Side', 'Lots', 'Entry → exit', 'Setup', 'R:R plan', 'R', 'Net'])
+  const cells = within(within(table).getByText('Breakout', { selector: 'span' }).closest('tr')!).getAllByRole('cell')
+  expect(cells).toHaveLength(9)
+  expect(within(cells[2]).getByText('BUY')).toBeInTheDocument()
+  expect(within(cells[2]).getByText('AuEdge')).toBeInTheDocument()
+  expect(within(cells[1]).getByText('FTMO 10k')).toBeInTheDocument()
+  expect(within(cells[1]).getByText('Phase 1')).toBeInTheDocument()
+})
+
+it('the account Journal tab is a headed table with Plan and Mood columns', async () => {
+  mockApi()
+  mount('/journal/5')
+  await screen.findByText('Breakout', { selector: 'span' })
+  expect(within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent))
+    .toEqual(['Opened', 'Side', 'Lots', 'Entry → exit', 'Setup', 'Plan', 'Mood', 'R:R plan', 'R', 'Net'])
+})
+
+it('the records calendar keeps its month when a filter changes', async () => {
+  mockApi({ 'GET /api/journal/trades': () => ({ trades: [T1, T2, T3] }) })
+  mount('/journal')
+  await screen.findAllByText('Range fade', { selector: 'span' })
+  fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+  expect(await screen.findByText(/October 2026/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+  expect(screen.getByText(/September 2026/)).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Result'), { target: { value: 'loss' } })
+  expect(screen.getByText(/September 2026/)).toBeInTheDocument()
 })
 
 it('the account page shows figures, meters, tabs and the calendar day trades', async () => {

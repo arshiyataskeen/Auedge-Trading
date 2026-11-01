@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { JournalTrade } from '../../api/types'
 import MoneyText from '../../components/MoneyText'
-import { price, rtext, toneOf } from '../../lib/format'
+import { price, rtext } from '../../lib/format'
 import { Bias, Chip, TONE } from '../dashboard/Cards'
 import { jDate } from './logic'
 
@@ -44,28 +44,62 @@ export function DayBars({ days }: { days: { day: string; pnl: number }[] }) {
   )
 }
 
-/** Trade rows (old tradeRow / tradeCard): each is a real button, so Enter / Space open the trade. */
-export function TradeList({ trades, showAcc = false, onOpen }: { trades: JournalTrade[]; showAcc?: boolean; onOpen: (t: JournalTrade) => void }) {
+/** Small labelled field (label text above the control). */
+export const Field = ({ t, children, title }: { t: string; children: ReactNode; title?: string }) =>
+  <label title={title} className="flex flex-col gap-0.5 text-[11px] text-muted"><span>{t}</span>{children}</label>
+/** Toggle-button class (selected / not). */
+export const segCls = (on: boolean, px = 'px-2.5') =>
+  `rounded border ${px} py-1 text-[12px] ${on ? 'border-accent bg-acc-bg text-strong' : 'border-line bg-panel text-muted hover:bg-hover'}`
+
+const TH = 'whitespace-nowrap px-1.5 py-1 text-left text-[10.5px] font-normal uppercase text-muted'
+const TD = 'px-1.5 py-1.5 align-middle'
+const WIDE = 'hidden sm:table-cell'
+
+/**
+ * Headed trade table (old renderRecords / renderAccount / tradeRow). `showAcc`: Account column (All records, calendar of all records);
+ * `plan`: Plan and Mood columns (an account's Journal tab). Rows open with a click, Enter or Space; the AuEdge chip sits under Side.
+ * Under 640 px Setup, Plan, Mood and R:R plan are hidden.
+ */
+export function TradeTable({ trades, showAcc = false, plan = false, onOpen }: {
+  trades: JournalTrade[]; showAcc?: boolean; plan?: boolean; onOpen: (t: JournalTrade) => void
+}) {
   return (
-    <div className="flex flex-col">
-      {trades.map((t) => (
-        <button key={t.id} type="button" data-trade={t.id} title="Open this trade" onClick={() => onOpen(t)}
-          className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-line px-1 py-1.5 text-left text-[12px] hover:bg-hover">
-          <span className="w-[112px] tabular-nums text-muted">{jDate(t.opened_at)}</span>
-          {showAcc && <span className="min-w-[110px]"><b className="text-strong">{t.account}</b> <span className="text-muted">{t.phase}</span></span>}
-          <Bias kind={t.side}>{t.side}</Bias>
-          {t.source === 'auedge' && <Chip>AuEdge</Chip>}
-          <span className="tabular-nums">{t.lots ?? '—'} lot</span>
-          <span className="tabular-nums">{price(t.entry)} → {t.exit != null ? price(t.exit) : t.net == null ? 'open' : '—'}</span>
-          <span className="min-w-0 truncate text-muted">{t.setup}</span>
-          {t.followed_plan === 0 && <span className="text-down">off plan</span>}
-          {t.followed_plan === 1 && !showAcc && <span title="Followed the plan">✓</span>}
-          <span className="text-muted">{t.emotion}</span>
-          {t.planned_rr != null && <span className="tabular-nums text-muted">1:{t.planned_rr}</span>}
-          {t.r != null && <span className={`tabular-nums ${TONE[toneOf(t.r)]}`}>{rtext(t.r)}</span>}
-          <b className="ml-auto tabular-nums">{t.net == null ? 'open' : <MoneyText v={t.net} />}</b>
-        </button>
-      ))}
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[12px]">
+        <thead>
+          <tr className="border-b border-line">
+            <th className={TH}>Opened</th>
+            {showAcc && <th className={TH}>Account</th>}
+            <th className={TH}>Side</th><th className={TH}>Lots</th><th className={TH}>Entry → exit</th>
+            <th className={`${TH} ${WIDE}`}>Setup</th>
+            {plan && <><th className={`${TH} ${WIDE}`}>Plan</th><th className={`${TH} ${WIDE}`}>Mood</th></>}
+            <th className={`${TH} ${WIDE}`}>R:R plan</th><th className={TH}>R</th><th className={`${TH} text-right`}>Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map((t) => (
+            <tr key={t.id} data-trade={t.id} tabIndex={0} title="Open this trade" onClick={() => onOpen(t)}
+              onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(t) } }}
+              className="cursor-pointer border-b border-line hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
+              <td className={`${TD} whitespace-nowrap tabular-nums text-muted`}>{jDate(t.opened_at)}</td>
+              {showAcc && <td className={TD}><b className="text-strong">{t.account}</b><div className="text-[11px] text-muted">{t.phase}</div></td>}
+              <td className={TD}><Bias kind={t.side}>{t.side}</Bias>{t.source === 'auedge' && <div className="mt-0.5"><Chip>AuEdge</Chip></div>}</td>
+              <td className={`${TD} tabular-nums`}>{t.lots ?? '—'}</td>
+              <td className={`${TD} whitespace-nowrap tabular-nums`}>{price(t.entry)} → {t.exit != null ? price(t.exit) : t.net == null ? 'open' : '—'}</td>
+              <td className={`${TD} ${WIDE} text-muted`}><span>{t.setup}</span></td>
+              {plan && (
+                <>
+                  <td className={`${TD} ${WIDE}`}>{t.followed_plan == null ? '' : t.followed_plan ? '✓' : <span className="text-down">✕</span>}</td>
+                  <td className={`${TD} ${WIDE} text-muted`}>{t.emotion}</td>
+                </>
+              )}
+              <td className={`${TD} ${WIDE} tabular-nums text-muted`}>{t.planned_rr != null ? `1:${t.planned_rr}` : ''}</td>
+              <td className={`${TD} whitespace-nowrap tabular-nums`}>{t.r != null ? rtext(t.r) : ''}</td>
+              <td className={`${TD} text-right font-semibold tabular-nums`}>{t.net == null ? 'open' : <MoneyText v={t.net} />}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

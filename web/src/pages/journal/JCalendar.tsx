@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JournalTrade } from '../../api/types'
 import MoneyText from '../../components/MoneyText'
 import { money } from '../../lib/format'
-import { Meta, Sect, TradeList } from './ui'
+import { Meta, Sect, TradeTable } from './ui'
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const nav = 'h-8 w-9 rounded bg-panel2 text-[18px] text-strong hover:bg-hover'
 
 /** Port of jCalendar: month grid by trading day (any month); tap a day to see its trades. */
-export default function JCalendar({ days, trades, showAcc = false, onOpenTrade }: {
+export default function JCalendar({ days, trades, showAcc = false, onOpenTrade, resetKey }: {
   days: Record<string, { pnl: number; n?: number }>; trades: JournalTrade[]; showAcc?: boolean; onOpenTrade: (t: JournalTrade) => void
+  /** changing this clears the picked day (the month is kept) */
+  resetKey?: string
 }) {
   const [month, setMonth] = useState(() => {
     const keys = Object.keys(days).sort()
@@ -17,6 +19,7 @@ export default function JCalendar({ days, trades, showAcc = false, onOpenTrade }
     return new Date(d.getFullYear(), d.getMonth(), 1)
   })
   const [sel, setSel] = useState<string | null>(null)
+  useEffect(() => { setSel(null) }, [resetKey])
   const lead = (month.getDay() + 6) % 7
   const nDays = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
   const ym = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`
@@ -56,7 +59,7 @@ export default function JCalendar({ days, trades, showAcc = false, onOpenTrade }
       {sel ? (
         <div className="mt-3">
           <Sect>{new Date(sel + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</Sect>
-          {dayTrades.length ? <TradeList trades={dayTrades} showAcc={showAcc} onOpen={onOpenTrade} /> : <Meta>No trades.</Meta>}
+          {dayTrades.length ? <TradeTable trades={dayTrades} showAcc={showAcc} onOpen={onOpenTrade} /> : <Meta>No trades.</Meta>}
         </div>
       ) : <Meta cls="mt-1.5">Tap a day to see its trades.</Meta>}
     </div>

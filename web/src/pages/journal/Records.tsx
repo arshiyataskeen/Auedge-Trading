@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useJournalAccounts, useJournalTrades } from '../../api/endpoints'
 import type { JournalTrade } from '../../api/types'
 import PageHeader from '../../components/PageHeader'
@@ -7,11 +8,7 @@ import { money, toneOf } from '../../lib/format'
 import { TONE } from '../dashboard/Cards'
 import JCalendar from './JCalendar'
 import { downloadCsv, recFiltered, type RecFilters } from './logic'
-import { btnCls, btnPrimaryCls, Card, inputCls, linkBtn, Meta, Stat, TradeList } from './ui'
-
-const F = ({ t, children }: { t: string; children: ReactNode }) =>
-  <label className="flex flex-col gap-0.5 text-[11px] text-muted"><span>{t}</span>{children}</label>
-const seg = (on: boolean) => `rounded border px-3 py-1 text-[12px] ${on ? 'border-accent bg-acc-bg text-strong' : 'border-line bg-panel text-muted hover:bg-hover'}`
+import { btnCls, btnPrimaryCls, Card, Field as F, inputCls, linkBtn, Meta, segCls, Stat, TradeTable } from './ui'
 
 /** Port of openRecords / renderRecords: every trade of every account, with filters, List / Calendar and a CSV download. */
 export default function Records({ onAddTrade, onNewAccount, onOpenTrade }: {
@@ -37,6 +34,7 @@ export default function Records({ onAddTrade, onNewAccount, onOpenTrade }: {
 
   return (
     <div>
+      <div className="mb-1"><Link to="/dashboard" className={linkBtn}>← All accounts</Link></div>
       <PageHeader title="All records" subtitle={`Every trade in every account · ${all.length} in total`}
         actions={<>
           <button type="button" className={btnPrimaryCls} onClick={onAddTrade}>＋ Add trade</button>
@@ -89,14 +87,14 @@ export default function Records({ onAddTrade, onNewAccount, onOpenTrade }: {
               <Stat v={pf} k="profit factor" />
             </div>
             <div className="flex gap-1" role="group" aria-label="Records view">
-              <button type="button" aria-pressed={!cal} className={seg(!cal)} onClick={() => setCal(false)}>List</button>
-              <button type="button" aria-pressed={cal} className={seg(cal)} onClick={() => setCal(true)}>Calendar</button>
+              <button type="button" aria-pressed={!cal} className={segCls(!cal, 'px-3')} onClick={() => setCal(false)}>List</button>
+              <button type="button" aria-pressed={cal} className={segCls(cal, 'px-3')} onClick={() => setCal(true)}>Calendar</button>
             </div>
             <Card>
-              {cal ? <JCalendar key={Object.keys(days).sort().join()} days={days} trades={rows} showAcc onOpenTrade={onOpenTrade} />
+              {cal ? <JCalendar resetKey={JSON.stringify(f)} days={days} trades={rows} showAcc onOpenTrade={onOpenTrade} />
                 : rows.length ? (
                   <>
-                    <TradeList trades={rows} showAcc onOpen={onOpenTrade} />
+                    <TradeTable trades={rows} showAcc onOpen={onOpenTrade} />
                     {rs.length > 0 && <Meta cls="mt-1.5">Average result {(rs.reduce((a, b) => a + b, 0) / rs.length).toFixed(2)}R over {rs.length} trades with a stop.</Meta>}
                   </>
                 ) : <Meta>No trades match.</Meta>}

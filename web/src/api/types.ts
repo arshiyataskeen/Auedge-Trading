@@ -227,3 +227,7 @@ export type TradeBody = Record<string, unknown> & { account_id?: number; opened_
 export type AccountBody = { name: string; firm?: string; size?: number; notes?: string; rules?: Partial<AccountRules> | Record<string, unknown>; archived?: boolean }
 export type SaveReply = OkResult & { id?: number }
 export type AdvanceBody = { result: string; note?: string; next_balance?: number | null }
+
+/* ---------- XAUS candles (the chart; GET only, from the free XAUS API) ---------- */
+export type XausIntraday = { interval_seconds?: number; source?: string; points: { t: number; p: number | null }[] }
+export type XausChart = { points: { t: number; o: number | null; h: number; l: number; c: number | null; v?: number }[] }

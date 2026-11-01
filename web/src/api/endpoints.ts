@@ -1,9 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getJSON, sendOk } from './client'
+import { xausGet } from './xaus'
 import type {
   AccountBody, AdvanceBody, Analysis, BacktestInfo, BacktestStatus, BtResult, CalendarDayDetail, CalendarResp, Calls,
   Candles, Demo, DemoMonth, HealthLatest, JournalAccount, JournalAccounts, JournalTrades, News, OkResult, Review,
-  RunBody, RunReply, SaveReply, TradeBody, TradeFilters, TradeReview,
+  RunBody, RunReply, SaveReply, TradeBody, TradeFilters, TradeReview, XausChart, XausIntraday,
 } from './types'
 
 /** Refresh intervals (ms), from the plan's Global Constraints. */
@@ -39,6 +40,8 @@ export const qk = {
   jAccounts: (archived: boolean) => ['journal', 'accounts', archived] as const,
   jAccount: (id: number) => ['journal', 'account', id] as const,
   jTrades: ['journal', 'trades'] as const,
+  xausSpot: ['xaus', 'intraday'] as const,
+  xausFut: (interval: string, range: string) => ['xaus', 'chart', interval, range] as const,
 }
 
 /* ================= queries ================= */
@@ -47,9 +50,24 @@ export const qk = {
 export const useAnalysis = () =>
   useQuery({ queryKey: qk.analysis, queryFn: () => getJSON<Analysis>('/api/analysis'), refetchInterval: analysisInterval })
 
-/** GET /api/calls?days= */
+/** GET /api/calls?days= (days 0 = off: no request). */
 export const useCalls = (days: number) =>
-  useQuery({ queryKey: qk.calls(days), queryFn: () => getJSON<Calls>(`/api/calls?days=${days}`) })
+  useQuery({ queryKey: qk.calls(days), enabled: days > 0, queryFn: () => getJSON<Calls>(`/api/calls?days=${days}`) })
+
+/** XAUS 2-5 min spot samples of the last 48 h (old loadSpot). Re-read each time the Spot chart opens; retried every minute after a failure. */
+export const useSpotSamples = (enabled: boolean) =>
+  useQuery({
+    queryKey: qk.xausSpot, enabled, refetchOnMount: 'always',
+    queryFn: () => xausGet<XausIntraday>('/intraday?symbol=xau&hours=48'),
+    refetchInterval: (q) => (q.state.status === 'error' ? 60_000 : false),
+  })
+
+/** XAUS COMEX futures candles (old loadFutures); the API caches them ~60 s, so poll every 60 s. */
+export const useFuturesChart = (enabled: boolean, interval: string, range: string) =>
+  useQuery({
+    queryKey: qk.xausFut(interval, range), enabled, refetchOnMount: 'always', refetchInterval: 60_000,
+    queryFn: () => xausGet<XausChart>(`/chart?symbol=xau&interval=${interval}&range=${range}`),
+  })
 
 /** GET /api/news — 60 s. */
 export const useNews = () =>

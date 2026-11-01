@@ -6,9 +6,20 @@ export type OkResult = { ok: boolean; error?: string }
 /* ---------- analysis ---------- */
 export type AgentView = {
   agent: string; status: string; bias: string; confidence: number; headline: string
-  reasons: string[]; warnings: string[]; levels: unknown[]; timeframe: string; veto: boolean
-  metrics: Record<string, number>; subtitle: string; bias_label: string; rows: unknown[]; summary: string
-  label?: string; weight?: number; base_weight?: number; perf?: Record<string, unknown>; vote_off?: boolean; perf_weight?: number
+  reasons: string[]; warnings: string[]; levels: AgentLevel[]; timeframe: string; veto: boolean
+  metrics: Record<string, number | string>; subtitle: string; bias_label: string; rows: [string, string][]; summary: string
+  label?: string; weight?: number; base_weight?: number; vote_off?: boolean; perf_weight?: number
+  /** Performance weighting (60 days of scored calls); null until an agent has any. */
+  perf?: AgentPerf | null
+}
+export type AgentLevel = { kind: string; price: number; note?: string }
+export type AgentPerf = { hits: number; n: number; hit_rate: number; shrunk: number; mult: number }
+/** Scored calls of one agent (or "chief"); hit_rate is null until something was decided. */
+export type AgentRecord = { hits: number; misses: number; flat: number; pending: number; hit_rate: number | null }
+export type TrackTrade = { ts: number; side: Side; entry: number; stop: number; t1: number; status: string; result_r: number | null }
+export type Track = {
+  agents: Record<string, AgentRecord>
+  trades: { won: number; lost: number; open: number; expired: number; win_rate: number | null; avg_r: number | null; recent: TrackTrade[] }
 }
 export type StopPool = { price: number; side: string; strength: number; sources: string[]; status: string; hunted_ago_min: number | null }
 export type TradePlan = {
@@ -33,11 +44,7 @@ export type Analysis = {
   spot: { price: number; updated_at: string; age_seconds: number; stale: boolean; price_source: string }
   futures_gap: number; data_errors: string[]; adapter_problems: string[]
   data_check: AgentView; chief: Chief; agents: AgentView[]
-  track: {
-    agents: Record<string, Record<string, unknown>>
-    trades: { won: number; lost: number; open: number; expired: number; win_rate: number; avg_r: number
-      recent: { ts: number; side: Side; entry: number; stop: number; t1: number; status: string; result_r: number | null }[] }
-  }
+  track: Track | null
   weights_week: unknown; perf_weights_on: boolean
 }
 
@@ -132,12 +139,16 @@ export type NewsEvent = {
 export type News = { now: number; blocking: NewsEvent | null; events: NewsEvent[] }
 
 /* ---------- review board / trade review ---------- */
+export type ReviewChange = { agent: string; action: 'on' | 'off'; gain_6m?: number; gain_month?: number; halves_6m?: [number, number] }
+export type ReviewCandidate = {
+  agent: string; action: 'on' | 'off'; gain_6m: number; halves_6m: [number, number]; gain_month: number; skipped?: string
+}
 export type Review = {
   votes: { off: string[]; auto_apply: boolean }
-  log: { t: number; by: string; before: string[]; after: string[]; changes: Record<string, unknown>[]; note: string; review: string | null }[]
+  log: { t: number; by: string; before: string[]; after: string[]; changes: ReviewChange[]; note: string; review: string | null }[]
   last: {
     id: string; made_at: number; apply: boolean; applied?: boolean; votes_before: string[]; votes_after: string[]
-    changes: Record<string, unknown>[]; candidates: Record<string, unknown>[]; confirm: unknown; summary: string
+    changes: ReviewChange[]; candidates: ReviewCandidate[]; confirm: { result?: string } | null; summary: string
     rules: { noise_usd: number; max_changes: number; min_voters: number }
   } | null
   agents: { name: string; label: string; weight: number }[]
@@ -151,7 +162,7 @@ export type TradeReview = {
   made_at: number; backtest: string; n_live: number; n_backtest: number
   live: ReviewedTrade[]; recent_backtest: ReviewedTrade[]
   agents: { agent: string; helped: number; hurt: number; n: number; acc: number; verdict: string }[]
-  lessons: unknown[]; win_patterns: string[]
+  lessons: string[]; win_patterns: string[]
   conditions: { cond: string; val: string; n: number; win: number; avg_r: number; total_r: number }[]
   reasons: Record<string, number>; early_review_at: number
   labels: Record<string, string>; voting_off: string[]; reason_text: Record<string, string>; win_text: Record<string, string>

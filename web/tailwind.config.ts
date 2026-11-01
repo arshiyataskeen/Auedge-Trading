@@ -6,6 +6,8 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      borderRadius: { DEFAULT: '14px', lg: '18px', xl: '20px' },
+      fontFamily: { sans: ['Manrope', 'system-ui', 'sans-serif'] },
       colors: {
         app: v('app'), bg: v('bg'), panel: v('bg'), panel2: v('panel2'), hover: v('hover'),
         line: v('line'), line2: v('line2'), text: v('text'), strong: v('strong'), muted: v('muted'), faint: v('faint'),

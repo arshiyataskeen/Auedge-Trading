@@ -3,25 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --app: #0b0d12; --bg: #131722; --panel2: #1e222d; --hover: #2a2e39; --line: #2a2e39; --line2: #363a45;
-  --text: #d1d4dc; --muted: #787b86; --faint: #5d606b; --accent: #2962ff; --accent2: #1e53e5;
-  --up: #089981; --down: #f23645; --warn: #ff9800;
-  --up-bg: rgba(8,153,129,.15); --down-bg: rgba(242,54,69,.15); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.16);
-  --strong: #fff; --rowhover: #171b26; --rowhover2: #1b2030; --scrim: rgba(0,0,0,.6); --glass: rgba(19,23,34,.97);
-  --chart-text: #b2b5be; --chart-grid: rgba(42,46,57,.6); --entry: #5b8cff;
+  --app: #000000; --bg: #0b0b0c; --panel2: #141416; --hover: #1c1c1f; --line: #1f1f22; --line2: #2c2c30;
+  --text: #d9d9dc; --muted: #8b8b92; --faint: #5f5f66; --accent: #5b8cff; --accent2: #4a79e8;
+  --up: #2fbf8f; --down: #ef5360; --warn: #f0a63a;
+  --up-bg: rgba(47,191,143,.14); --down-bg: rgba(239,83,96,.14); --warn-bg: rgba(240,166,58,.14); --acc-bg: rgba(255,255,255,.08);
+  --strong: #ffffff; --rowhover: #111113; --rowhover2: #17171a; --scrim: rgba(0,0,0,.7); --glass: rgba(11,11,12,.97);
+  --chart-text: #b4b4ba; --chart-grid: rgba(255,255,255,.07); --entry: #7aa2ff;
 }
 :root[data-theme="light"] {
-  --app: #e0e3eb; --bg: #ffffff; --panel2: #f0f3fa; --hover: #e9ecf2; --line: #e0e3eb; --line2: #d1d4dc;
-  --text: #131722; --muted: #6a6d78; --faint: #9598a1;
-  --up-bg: rgba(8,153,129,.12); --down-bg: rgba(242,54,69,.10); --warn-bg: rgba(255,152,0,.14); --acc-bg: rgba(41,98,255,.10);
-  --strong: #131722; --rowhover: #f0f3fa; --rowhover2: #e9eefb; --scrim: rgba(19,23,34,.35); --glass: rgba(255,255,255,.97);
-  --chart-text: #131722; --chart-grid: rgba(224,227,235,.9); --entry: #2962ff;
+  --app: #f4f4f5; --bg: #ffffff; --panel2: #f4f4f5; --hover: #ececee; --line: #e4e4e7; --line2: #d4d4d8;
+  --text: #27272a; --muted: #6b6b73; --faint: #9a9aa2; --accent: #2f62e6; --accent2: #2552cc;
+  --up: #0f9b6c; --down: #dc3545; --warn: #d98a0b;
+  --up-bg: rgba(15,155,108,.12); --down-bg: rgba(220,53,69,.10); --warn-bg: rgba(217,138,11,.14); --acc-bg: rgba(0,0,0,.06);
+  --strong: #09090b; --rowhover: #f7f7f8; --rowhover2: #efeff1; --scrim: rgba(0,0,0,.35); --glass: rgba(255,255,255,.97);
+  --chart-text: #27272a; --chart-grid: rgba(0,0,0,.08); --entry: #2f62e6;
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
 html, body, #root { height: 100%; }
 body {
   margin: 0; background: var(--app); color: var(--text);
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  font: 13px/1.5 "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
 }
+h1, h2 { letter-spacing: -0.02em; }
+.label-caps { font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ticker-track { animation: ticker 45s linear infinite; }
+.ticker:hover .ticker-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .ticker-track { animation: none; } .ticker { overflow-x: auto; } }

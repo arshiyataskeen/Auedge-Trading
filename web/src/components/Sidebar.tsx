@@ -29,10 +29,10 @@ export default function Sidebar() {
   const soon = (news.data?.events ?? []).filter((e) => e.impact === 'High' && e.t > now && e.t - now < 86400).length
   return (
     <nav aria-label="Main"
-      className="z-20 flex shrink-0 flex-col items-stretch gap-1 border-r border-line bg-bg p-1.5 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:flex-row max-md:justify-around max-md:border-r-0 max-md:border-t md:w-[60px]">
+      className="z-20 flex shrink-0 flex-col items-stretch gap-1 border-r border-line bg-app p-1.5 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:flex-row max-md:justify-around max-md:border-r-0 max-md:border-t md:w-[68px]">
       {NAV_ITEMS.map((it) => (
         <NavLink key={it.key} to={it.to} title={it.label}
-          className={({ isActive }) => `relative flex flex-col items-center gap-0.5 rounded px-1 py-1.5 text-[10px] max-md:flex-1 ${isActive ? 'bg-acc-bg text-strong' : 'text-muted hover:bg-hover hover:text-text'}`}>
+          className={({ isActive }) => `relative flex flex-col items-center gap-0.5 rounded px-1 py-1.5 text-[10px] max-md:flex-1 ${isActive ? 'bg-panel2 text-strong' : 'text-muted hover:bg-hover hover:text-text'}`}>
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[it.key]}</svg>
           <span>{it.label}</span>
           {it.key === 'news' && soon > 0 && (

@@ -8,6 +8,7 @@ import { money, toneOf } from '../../lib/format'
 import { withLivePrice } from '../demo/logic'
 import LoadingCard from '../../components/LoadingCard'
 import { AccountCard, DemoCard, EMPTY, TONE } from './Cards'
+import SessionsDial from '../../components/SessionsDial'
 import TodayStrip from './TodayStrip'
 import { btn, btnPrimary } from './ui'
 
@@ -76,6 +77,7 @@ export default function DashboardPage() {
           </QueryCard>
         </div>
         <aside className="flex min-w-0 flex-col items-start gap-2">
+          <SessionsDial />
           <section className="w-full rounded border border-line bg-panel p-3">
             <h2 className="mb-2 text-[12px] font-semibold text-strong">Tips</h2>
             <ul className="list-disc space-y-1.5 pl-4 text-[12px] text-muted">

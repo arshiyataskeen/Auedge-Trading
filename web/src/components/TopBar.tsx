@@ -30,7 +30,7 @@ export default function TopBar() {
   const ch = lp.change
   const up = ch ? ch.diff >= 0 : true
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-bg px-3">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-app px-4">
       <b className="text-strong">XAUUSD</b>
       <span className="text-[18px] font-semibold text-strong">{lp.price != null ? `$${fmt(lp.price)}` : '—'}</span>
       {ch && (

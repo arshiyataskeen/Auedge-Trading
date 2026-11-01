@@ -7,7 +7,7 @@ import { jDate } from './logic'
 
 export const inputCls = 'rounded border border-line bg-app px-2 py-1 text-[12.5px] text-strong'
 export const btnCls = 'rounded border border-line bg-panel2 px-3 py-1.5 text-[12.5px] text-strong hover:bg-hover disabled:opacity-50'
-export const btnPrimaryCls = 'rounded border border-accent bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:opacity-50'
+export const btnPrimaryCls = 'rounded-full border border-strong bg-strong px-3 py-1.5 text-[12.5px] font-semibold text-app hover:opacity-90 disabled:opacity-50'
 export const linkBtn = 'text-[12px] text-accent underline hover:opacity-80'
 export const Card = ({ children, label }: { children: ReactNode; label?: string }) =>
   <section aria-label={label} className="rounded border border-line bg-panel p-3">{children}</section>

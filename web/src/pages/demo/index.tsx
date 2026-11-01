@@ -1,3 +1,5 @@
+import DemoLayout from './DemoLayout'
+
 export default function DemoPage() {
-  return <h1 className="text-[16px] font-semibold text-strong">Demo</h1>
+  return <DemoLayout tab="account" />
 }

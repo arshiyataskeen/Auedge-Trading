@@ -105,6 +105,7 @@ export type HealthLatest = { id: string; kind: string; made_at: number; variants
 export type DemoTrade = {
   id: number; ts: number; side: Side; entry: number; stop: number; t1: number; gap: number; lot: number; cost: number
   status: string; closed_ts?: number; result_r?: number; half: number; exit_price?: number; usd?: number; why?: string; be: number
+  stop_now?: number; unrealised?: number
 }
 export type Demo = {
   start: number; lot: number; balance: number; equity: number; realised: number; today: number; week: number
@@ -117,7 +118,7 @@ export type DemoMonth = { status: 'none' | 'running' | 'done' | 'error' | string
 export type CalendarDay = { pnl: number; trades: number; nows: number; live: boolean; sim: boolean }
 export type CalendarResp = { days: Record<string, CalendarDay> }
 export type CalendarDayDetail = {
-  date: string; source: string; steps: number; nows: number
+  date: string; source: string; steps: number; nows: number; pnl: number; window: [number, number]
   timeline: { t: number; p: number; a: string; k: string; sd: Side | null; cf: number; tr: string; lv: (number | null)[] }[]
   agents: Record<string, { calls: number; hit: number; miss: number; flat: number; pending: number }>
   trades: BtTrade[]; levels: { start: BtStep; end: BtStep }; error?: string

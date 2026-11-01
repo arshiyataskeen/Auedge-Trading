@@ -1,3 +1,5 @@
+import DemoLayout from './DemoLayout'
+
 export default function DemoCalendarPage() {
-  return <h1 className="text-[16px] font-semibold text-strong">Demo calendar</h1>
+  return <DemoLayout tab="calendar" />
 }

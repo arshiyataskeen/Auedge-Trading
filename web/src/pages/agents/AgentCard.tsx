@@ -121,11 +121,10 @@ export function AgentDetails({ r, d, onClose }: { r: AgentView; d: Analysis; onC
 }
 
 /** Cards grid + details dialog state. */
-export default function AgentGrid({ d, crowd }: { d: Analysis; crowd?: AgentView }) {
+export default function AgentGrid({ d }: { d: Analysis }) {
   const [open, setOpen] = useState<number | null>(null)
   return (
     <>
-      <CrowdCard a={crowd} />
       <div className="grid grid-cols-1 overflow-hidden rounded border border-b-0 border-line sm:grid-cols-2 xl:grid-cols-3">
         {d.agents.map((r, i) => <AgentCard key={r.agent} r={r} d={d} onOpen={() => setOpen(i)} />)}
       </div>

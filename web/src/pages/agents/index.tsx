@@ -19,6 +19,7 @@ function Status({ d }: { d: Analysis }) {
       Updated {new Date(d.generated_at).toLocaleTimeString()} · data: <b className={dc.veto ? 'text-warn' : ''}>{dc.headline}</b>
       {d.ai_enabled ? ' · Claude summary on' : ''}
       {d.adapter_problems.length ? ` · adapter problems: ${d.adapter_problems.join('; ')}` : ''}
+      {` · agents OK: ${d.agents.filter((a) => a.status === 'OK').length}/${d.agents.length}`}
       {' · click any agent for details'}
     </>
   )
@@ -39,7 +40,7 @@ export default function AgentsPage() {
           <ReviewBoard />
           <TradeReviewer />
           <QueryCard query={analysis} title="Agents">
-            {(d) => <AgentGrid d={d} crowd={d.agents.find((a) => a.agent === 'sentiment')} />}
+            {(d) => <AgentGrid d={d} />}
           </QueryCard>
         </div>
         <div className="pt-3">

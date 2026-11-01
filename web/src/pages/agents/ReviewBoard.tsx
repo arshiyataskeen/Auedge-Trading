@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  qk, useApplyReview, useBacktestStatus, useReview, useReviewAuto, useReviewVote, useRunReview, useUndoReview,
+  qk, useApplyReview, useBacktestStatus, useReview, useRefreshAnalysis, useReviewAuto, useReviewVote, useRunReview, useUndoReview,
 } from '../../api/endpoints'
 import type { Review } from '../../api/types'
 import QueryCard from '../../components/QueryCard'
@@ -25,14 +25,20 @@ export default function ReviewBoard() {
   const busy = !!st?.running && !running
   useEffect(() => { setPolling(running) }, [running])
 
-  // Review list every 5 min; when a review run finishes the new votes need a fresh analysis (old loadAgents(true)).
+  // Every 5 min re-read the review list and the status (a scheduled review may have started); old rvLoad.
   useEffect(() => {
-    const t = setInterval(() => qc.invalidateQueries({ queryKey: qk.review }), REVIEW_POLL_MS)
+    const t = setInterval(() => {
+      qc.invalidateQueries({ queryKey: qk.review }); qc.invalidateQueries({ queryKey: qk.btStatus })
+    }, REVIEW_POLL_MS)
     return () => clearInterval(t)
   }, [qc])
+  // New votes change live weights: re-run the analysis (old loadAgents(true) = GET /api/analysis?refresh=true).
+  const refresh = useRefreshAnalysis()
+  const refreshRef = useRef(refresh.mutate)
+  refreshRef.current = refresh.mutate
   const was = useRef(false)
   useEffect(() => {
-    if (was.current && !running) { qc.invalidateQueries({ queryKey: qk.review }); qc.invalidateQueries({ queryKey: qk.analysis }) }
+    if (was.current && !running) { qc.invalidateQueries({ queryKey: qk.review }); refreshRef.current() }
     was.current = running
   }, [running, qc])
 
@@ -42,15 +48,21 @@ export default function ReviewBoard() {
     setErr('')
     try { await fn() } catch (e) { setErr((e as Error).message) }
   }
-  const anyPending = vote.isPending || run.isPending || undo.isPending || auto.isPending || apply.isPending
+  const anyPending = vote.isPending || run.isPending || undo.isPending || auto.isPending || apply.isPending || refresh.isPending
+
+  const actThenRefresh = async (fn: () => Promise<unknown>) => {
+    setErr('')
+    try { await fn() } catch (e) { setErr((e as Error).message); return }
+    try { await refresh.mutateAsync() } catch (e) { setErr(`Saved, but refreshing the analysis failed: ${(e as Error).message}`) }
+  }
 
   const onVote = (name: string, turnOn: boolean) => {
     if (!window.confirm(`${turnOn ? 'Switch ON' : 'Switch OFF'} the ${labelOf(name)} vote? It is logged and can be undone.`)) return
-    void act(() => vote.mutateAsync({ agent: name, on: turnOn }))
+    void actThenRefresh(() => vote.mutateAsync({ agent: name, on: turnOn }))
   }
   const onUndo = () => {
     if (!window.confirm('Undo the last vote change?')) return
-    void act(() => undo.mutateAsync())
+    void actThenRefresh(() => undo.mutateAsync())
   }
   const onRun = () => void act(async () => { await run.mutateAsync(false); await qc.invalidateQueries({ queryKey: qk.btStatus }) })
 
@@ -58,7 +70,7 @@ export default function ReviewBoard() {
     <QueryCard query={review} title="Review board">
       {(d) => <Board d={d} err={err} anyPending={anyPending} running={running} busy={busy} st={st}
         onVote={onVote} onUndo={onUndo} onRun={onRun}
-        onApply={(id) => void act(() => apply.mutateAsync(id))}
+        onApply={(id) => void actThenRefresh(() => apply.mutateAsync(id))}
         onAuto={(on) => void act(() => auto.mutateAsync(on))} />}
     </QueryCard>
   )

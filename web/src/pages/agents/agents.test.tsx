@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { CrowdCard } from './AgentCard'
 import AgentsPage from './index'
 
 const agent = (name: string, label: string, o: Record<string, unknown> = {}) => ({
@@ -95,12 +96,57 @@ it('renders one card per agent with its label, weight text and hit rate', async 
   expect(within(cards[4]).getByText(/track record: none yet/)).toBeInTheDocument()
 })
 
-it('shows the crowd card from the sentiment agent', async () => {
+it('keeps the crowd card off the Agents page (it belongs to the Trade plan); CrowdCard still renders it', async () => {
   mockApi()
   mount()
-  expect(await screen.findByText('Market psychology · how the crowd is behaving')).toBeInTheDocument()
+  await screen.findAllByTestId('agent-card')
+  expect(screen.queryByText('Market psychology · how the crowd is behaving')).not.toBeInTheDocument()
+  render(<CrowdCard a={AGENTS[3] as never} />)
+  expect(screen.getByText('Market psychology · how the crowd is behaving')).toBeInTheDocument()
   expect(screen.getByText('Fear index')).toBeInTheDocument()
   expect(screen.getByText('No contrarian trade')).toBeInTheDocument()
+})
+
+it('orders the Agents tab: review board, trade reviewer, agent cards', async () => {
+  mockApi()
+  mount()
+  const board = await screen.findByRole('region', { name: 'Review board' })
+  const trv = await screen.findByRole('region', { name: 'Trade reviewer' })
+  const card = (await screen.findAllByTestId('agent-card'))[0]
+  expect(board.compareDocumentPosition(trv) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(trv.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+it('the subtitle shows data check, Claude summary, adapter problems and the OK agent count', async () => {
+  mockApi({ '/api/analysis': { ...ANALYSIS, ai_enabled: true, adapter_problems: ['yahoo down', 'cot late'] } })
+  mount()
+  const sub = await screen.findByText(/data:/)
+  expect(sub).toHaveTextContent('data: Data fresh · Claude summary on · adapter problems: yahoo down; cot late · agents OK: 5/5 · click any agent for details')
+})
+
+it('a vote is followed by GET /api/analysis?refresh=true; a run or auto toggle is not', async () => {
+  mockApi()
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  mount()
+  await screen.findByRole('group', { name: 'Agent votes' })
+  fireEvent.click(chip(/Wyckoff/))
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/analysis?refresh=true' && c.method === 'GET')).toBe(true))
+  const n = calls.filter((c) => c.url === '/api/analysis?refresh=true').length
+  fireEvent.click(screen.getByRole('button', { name: /Run review now/ }))
+  await waitFor(() => expect(posts().some((p) => p.url === '/api/review/run')).toBe(true))
+  fireEvent.click(screen.getByLabelText('Apply changes automatically'))
+  await waitFor(() => expect(posts().some((p) => p.url === '/api/review/auto')).toBe(true))
+  expect(calls.filter((c) => c.url === '/api/analysis?refresh=true')).toHaveLength(n)
+})
+
+it('a refused vote does not refresh the analysis', async () => {
+  mockApi({ '/api/review/vote': { ok: false, error: 'nope' } })
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  mount()
+  await screen.findByRole('group', { name: 'Agent votes' })
+  fireEvent.click(chip(/Wyckoff/))
+  await screen.findByRole('alert')
+  expect(calls.some((c) => c.url === '/api/analysis?refresh=true')).toBe(false)
 })
 
 it('opens an agent card with Enter and shows its rows and levels; Escape closes', async () => {

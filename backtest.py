@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import html
 import json
 import os
@@ -223,7 +224,8 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
     off -= set(SETTINGS.get("add") or [])                          # review board: test switching a vote back on
     for name in off:
         w[name] = 0
-    rep = chief(ctx, results, w, check)
+    with intel_env(SETTINGS.get("intel")):
+        rep = chief(ctx, results, w, check)
     from core.newsintel.chief_hook import apply_from_results
     apply_from_results(rep, results)
     rep.today = today_view(rep)
@@ -261,6 +263,108 @@ class WalkForward:
         return aw.apply(BASE_WEIGHTS, self.mult)
 
 
+# ---------------------------------------------------------------- intel flags / breakdowns
+INTEL_FLAGS = ("ALIGN", "SWEEP_BOS", "SESSION", "VOL", "ENTRY", "NEWS_EXTRA", "SCORE_GATE")
+
+
+@contextlib.contextmanager
+def intel_env(intel: dict | None):
+    """Run with INTEL_<NAME> env overrides ({name: True/False}); restored afterwards. None = live flags file."""
+    old = {}
+    for k, on in (intel or {}).items():
+        key = "INTEL_" + k.upper()
+        old[key] = os.environ.get(key)
+        os.environ[key] = "on" if on else "off"
+    try:
+        yield
+    finally:
+        for key, v in old.items():
+            if v is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = v
+
+
+def parse_intel(arg: str | None) -> dict | None:
+    """'--intel ALIGN,VOL' -> {ALIGN: True, VOL: True}; 'all' = every flag; 'none' = all off."""
+    if not arg:
+        return None
+    a = arg.strip().upper()
+    if a == "ALL":
+        return {f: True for f in INTEL_FLAGS}
+    if a == "NONE":
+        return {f: False for f in INTEL_FLAGS}
+    out = {}
+    for x in a.split(","):
+        x = x.strip().removeprefix("INTEL_")
+        if x not in INTEL_FLAGS:
+            raise ValueError(f"unknown intel flag {x}; choose from {', '.join(INTEL_FLAGS)}")
+        out[x] = True
+    return out
+
+
+def _qtags(rep) -> dict:
+    q = getattr(rep, "quality", None) or {}
+    vol = next((f["text"] for f in q.get("factors", []) if f["name"] == "volatility"), "")
+    reg = next((r for r in ("abnormal", "high", "normal", "low") if r in vol.lower()), "unknown") if vol and vol != "not available" else "unknown"
+    if "quiet" in vol.lower():
+        reg = "low"
+    return {"score": q.get("score"), "avoid": q.get("avoid"), "vol": reg}
+
+
+def _session_of(t: int) -> str:
+    try:
+        from core.intel.sessions import current_sessions
+        sn = current_sessions(t)
+        if sn.low_liquidity:
+            return "Low-liquidity (17-19 NY)"
+        n = sn.sessions
+        return ("London/New York overlap" if "London/New York overlap" in n else n[0]) if n else "Between sessions"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _news_of(t: int) -> str:
+    try:
+        from core.newsintel.gates import blackout
+        e = blackout(t)
+        if e:
+            return e.get("kind") or e.get("name") or "news"
+        from core.intel.news_extra import extra_blackout, load_events
+        ex = None
+        for ev in load_events():
+            from core import news as _n
+            a, b = _n.window({"t": ev["t"], "kind": ev["kind"]})
+            if a <= t <= b:
+                ex = ev
+                break
+        return ex["kind"] if ex else "No news window"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def breakdowns(trades: list[dict]) -> dict:
+    """Summary per session, volatility regime and news category (at entry time)."""
+    out = {}
+    for label, key in (("Session", lambda t: _session_of(t["entry_t"])),
+                       ("Volatility", lambda t: (t.get("q") or {}).get("vol", "unknown")),
+                       ("News", lambda t: _news_of(t["entry_t"]))):
+        groups: dict = {}
+        for t in trades:
+            groups.setdefault(key(t), []).append(t)
+        out[label] = {k: summarize(v) for k, v in sorted(groups.items())}
+    return out
+
+
+def breakdown_lines(bd: dict, spread: float) -> list[str]:
+    lines = [f"Costs: ${spread:.2f} spread/slippage per side, plus ${SETTINGS.get('stop_slip', 0):.2f} extra when a stop fills."]
+    for label, groups in bd.items():
+        parts = [f"{k}: {g['n']} trades, {g.get('total_r', 0):+.2f}R" for k, g in groups.items() if g.get("n")]
+        if parts:
+            lines.append(f"By {label.lower()}: " + "; ".join(parts) + ".")
+    return lines
+
+
 # ---------------------------------------------------------------- trade simulation
 # Trade settings (set by main()/web_run()): fixed reward:risk target instead of the plan's target, and whether
 # half the position comes off at 1R. Dollar results use a fixed lot: 1 lot = 100 oz, so 0.1 lot = $10 per $1 move.
@@ -272,7 +376,8 @@ SETTINGS = {"target_rr": None, "partial": True, "account": 25000.0, "lot": 0.1, 
             "f_trend": False, "f_htf": False, "f_htf_strict": False,
             "runner_rr": None, "trail_r": None, "min_conf": None,        # quality filter: only when the Daily and 4H both point the trade's way
             "f_hunt": False,         # quality filter: only right after a stop hunt against the trade's side
-            "drop": None, "cache": False}   # health check internals
+            "drop": None, "cache": False,
+            "intel": None}           # {FLAG: True/False} INTEL_* overrides for this run (None = live flags file)   # health check internals
 
 
 def exit_on_bar(tr: dict, c: Candle, spread: float, sec: int = 900) -> bool:
@@ -551,6 +656,7 @@ async def run(hist: History, spread: float, days: float | None, start_t: int | N
                 trade = open_trade(plan, "now", m15[i + 1].t, m15[i + 1].o, spread, T)
                 if trade:
                     trade["conf"] = rep.confidence
+                    trade["q"] = _qtags(rep)
                     opened[session_day(T)] = opened.get(session_day(T), 0) + 1
                 counts["skipped_entry"] += trade is None
             elif plan.kind == "pending" and plan.stop and plan.t1 and not pending:
@@ -872,6 +978,7 @@ async def run_hourly(hist: History, spread: float, start_t: int | None = None, e
                 trade = open_trade(plan, "now", nc.t, nc.o, spread, T)
                 if trade:
                     trade.update(meta)
+                    trade["q"] = _qtags(rep)
                     opened[session_day(T)] = opened.get(session_day(T), 0) + 1
                 counts["skipped_entry"] += trade is None
             elif plan.kind == "pending" and plan.stop and plan.t1 and not pending:
@@ -976,7 +1083,9 @@ async def main_hourly(args) -> None:
               ">= 4 agents agree with the side": summarize([t for t in trades if t.get("agree", 0) >= 4]),
               ">= 5 agents agree with the side": summarize([t for t in trades if t.get("agree", 0) >= 5])}
     agents = score_calls_ex(ex, ends, calls)
-    lines = plain_summary(s, groups, agents, counts, args.spread)
+    lines = plain_summary(s, groups, agents, counts, args.spread) + breakdown_lines(breakdowns(trades), args.spread)
+    if SETTINGS.get("intel"):
+        lines.insert(0, "Intel filters for this run: " + ", ".join(f"{k} {'on' if v else 'off'}" for k, v in SETTINGS["intel"].items()))
     lines.insert(1, f"Hourly steps. Before {when(counts['start15'])} the lowest timeframe is APPROXIMATED with 1H "
                     f"candles (the free data has only ~1 month of 15m); after it, real 15m candles are used.")
     findings = analyse_6m(trades, steps, agents)
@@ -1043,6 +1152,8 @@ async def web_run(start_t: int, end_t: int, step: str, spread: float, progress_f
               "Chief confidence >= 70%": summarize([t for t in trades if t.get("conf", 0) >= 70]), **groups}
     usd = add_dollars(trades)
     lines = plain_summary(s, groups, agents, counts, spread)
+    bd = breakdowns(trades)
+    lines += breakdown_lines(bd, spread)
     if trades:
         lines.insert(3, f"In dollars at {SETTINGS['lot']} lot on a ${SETTINGS['account']:,.0f} account: "
                         f"{usd['total_usd']:+,.0f} ({usd['return_pct']:+.1f}%), ending balance ${usd['end_balance']:,.0f}, "
@@ -1060,6 +1171,7 @@ async def web_run(start_t: int, end_t: int, step: str, spread: float, progress_f
     return {"steps": out_steps, "params": {"start": start_t, "end": end_t, "step": step, "spread": spread, **SETTINGS,
                           **news_models_info(start_t)},
             "summary": s, "usd": usd, "groups": groups, "agents": agents, "lines": lines, "counts": counts,
+            "breakdowns": bd, "slippage": {"spread": spread, "stop_slip": SETTINGS.get("stop_slip", 0.0)},
             "equity": curve, "trades": [{k: t.get(k) for k in keep} for t in trades], "made_at": time.time()}
 
 
@@ -1084,6 +1196,11 @@ def _variants() -> list[dict]:
         if BASE_WEIGHTS.get(a.name, 0) > 0 and a.name not in off:
             v.append({"key": "drop_" + a.name, "group": "agent", "agent": a.name,
                       "label": f"Without {AGENT_NAMES.get(a.name, a.name)}", "set": {"drop": [a.name]}})
+    from core.intel.flags import flag as _flag
+    for f in INTEL_FLAGS:                  # each quality filter flipped from its live state (review board: "Filters")
+        on = _flag(f)
+        v.append({"key": "intel_" + f, "group": "intel", "flag": f, "to": not on,
+                  "label": f"Filter {f} {'off' if on else 'on'}", "set": {"intel": {f: not on}}})
     for name in sorted(off):
         if BASE_WEIGHTS.get(name, 0) > 0:
             v.append({"key": "add_" + name, "group": "agent_add", "agent": name,
@@ -1152,6 +1269,7 @@ async def health_check(start_t: int, end_t: int, step: str, spread: float, progr
             "n": sm["n"], "win_rate": sm["win_rate"], "usd": usd["total_usd"], "dd": usd["max_dd_usd"],
             "h1_usd": round(sum(t["usd"] for t in half[0]), 2), "h2_usd": round(sum(t["usd"] for t in half[1]), 2),
             "h1_n": len(half[0]), "h2_n": len(half[1]),
+            "rpt": _rpt(trades), "h1_rpt": _rpt(half[0]), "h2_rpt": _rpt(half[1]), "dd_r": sm["max_dd"],
             "blocked": {x[8:]: c for x, c in counts.items() if x.startswith("blocked_")}})
         if k == 0:
             first_t, last_t, mid0 = counts["first_t"], counts["last_t"], mid
@@ -1179,6 +1297,23 @@ async def health_check(start_t: int, end_t: int, step: str, spread: float, progr
 # on by the same rule. At most 2 changes per review, never fewer than MIN_VOTERS voting agents, and when there are 2
 # changes they must also pass together. Control rules (discipline, limits, news) are never changed by the board.
 MAX_CHANGES = 2
+
+
+def _rpt(trades: list[dict]) -> float | None:
+    return round(sum(t["r"] for t in trades) / len(trades), 3) if trades else None
+
+
+def intel_better(v6: dict, b6: dict, vm: dict | None, bm: dict | None) -> bool:
+    """Review rule for a filter: R per trade better in BOTH 6-month halves, the last month agrees (not worse per
+    trade) and max drawdown (R) is not higher. Missing numbers = no change."""
+    try:
+        if None in (v6["h1_rpt"], v6["h2_rpt"], b6["h1_rpt"], b6["h2_rpt"]):
+            return False
+        halves = v6["h1_rpt"] > b6["h1_rpt"] and v6["h2_rpt"] > b6["h2_rpt"]
+        month = vm is not None and bm is not None and (vm["rpt"] or 0) >= (bm["rpt"] or 0)
+        return halves and month and v6["dd_r"] <= b6["dd_r"]
+    except (KeyError, TypeError):
+        return False
 
 
 def _gain(v: dict, base: dict) -> float:
@@ -1219,6 +1354,16 @@ async def review(progress_file: Path | None, apply: bool) -> dict:
             cands.append({"agent": v["agent"], "action": "off" if v["group"] == "agent" else "on",
                           "gain_6m": round(_gain(v, b6), 2), "gain_month": round(_gain(m, bm), 2),
                           "halves_6m": [round(v["h1_usd"] - b6["h1_usd"], 2), round(v["h2_usd"] - b6["h2_usd"], 2)]})
+    for v in six["variants"]:
+        if v["group"] != "intel":
+            continue
+        m = mv.get(v["key"])
+        if intel_better(v, b6, m, bm):
+            cands.append({"flag": v["flag"], "agent": "filter:" + v["flag"], "action": "on" if v["to"] else "off",
+                          "gain_6m": round(_gain(v, b6), 2), "gain_month": round(_gain(m, bm), 2),
+                          "rpt_6m": [v["h1_rpt"], v["h2_rpt"]], "rpt_base": [b6["h1_rpt"], b6["h2_rpt"]],
+                          "dd_r": [v["dd_r"], b6["dd_r"]],
+                          "halves_6m": [round(v["h1_usd"] - b6["h1_usd"], 2), round(v["h2_usd"] - b6["h2_usd"], 2)]})
     cands.sort(key=lambda c: -(c["gain_6m"] + c["gain_month"]))
     voters = len([a for a in BASE_WEIGHTS if BASE_WEIGHTS[a] > 0]) - len(off_now)
     chosen = []
@@ -1226,16 +1371,21 @@ async def review(progress_file: Path | None, apply: bool) -> dict:
         if len(chosen) >= MAX_CHANGES:
             break
         after = voters - sum(x["action"] == "off" for x in chosen) - (c["action"] == "off") + sum(x["action"] == "on" for x in chosen)
+        if "flag" in c:                      # filters share the same 2-changes budget, no voter minimum
+            chosen.append(c)
+            continue
         if c["action"] == "off" and after < votes.MIN_VOTERS:
             c["skipped"] = f"would leave fewer than {votes.MIN_VOTERS} voting agents"
             continue
         chosen.append(c)
     confirm = None
     if len(chosen) > 1:                      # several changes: they must also work together
-        drop = [c["agent"] for c in chosen if c["action"] == "off"]
-        add = [c["agent"] for c in chosen if c["action"] == "on"]
+        drop = [c["agent"] for c in chosen if c["action"] == "off" and "flag" not in c]
+        add = [c["agent"] for c in chosen if c["action"] == "on" and "flag" not in c]
+        intel = {c["flag"]: c["action"] == "on" for c in chosen if "flag" in c}
         combo = [{"key": "base", "group": "base", "label": "Today's votes", "set": {}},
-                 {"key": "combo", "group": "combo", "label": "All proposed changes together", "set": {"drop": drop, "add": add}}]
+                 {"key": "combo", "group": "combo", "label": "All proposed changes together",
+                  "set": {"drop": drop, "add": add, "intel": intel or None}}]
         confirm = {}
         for k, (name, (start, step)) in enumerate(windows.items()):
             r = await health_check(start, last + 1, step, 0.30, None, combo, keep_cache=True,
@@ -1250,13 +1400,19 @@ async def review(progress_file: Path | None, apply: bool) -> dict:
             confirm["result"] = "The changes also work together."
     _AGENT_CACHE.clear()
     new_off = set(off_now)
+    intel_after = {}
     for c in chosen:
+        if "flag" in c:
+            intel_after[c["flag"]] = c["action"] == "on"
+            continue
         (new_off.add if c["action"] == "off" else new_off.discard)(c["agent"])
     summary = ("No changes: no agent's vote clearly helped or hurt in both halves of the 6 months while the last month "
                "agreed." if not chosen else "; ".join(
-                   f"{AGENT_NAMES.get(c['agent'], c['agent'])} vote {c['action'].upper()} "
+                   (f"Filter {c['flag']} {c['action'].upper()} " if "flag" in c else
+                    f"{AGENT_NAMES.get(c['agent'], c['agent'])} vote {c['action'].upper()} ") +
                    f"(6 months {c['gain_6m']:+,.0f} $, last month {c['gain_month']:+,.0f} $)" for c in chosen) + ".")
     return {"kind": "review", "made_at": time.time(), "apply": apply, "votes_before": off_now, "votes_after": sorted(new_off),
+            "intel_after": intel_after,
             "changes": chosen, "candidates": cands, "confirm": confirm, "summary": summary,
             "windows": {k: {"variants": r["variants"], "params": r["params"]} for k, r in results.items()},
             "rules": {"noise_usd": NOISE_USD, "max_changes": MAX_CHANGES, "min_voters": votes.MIN_VOTERS}}
@@ -1291,6 +1447,7 @@ def main() -> None:
     ap.add_argument("--health-check", action="store_true", help="dashboard run: compare today's rules with variants")
     ap.add_argument("--review", action="store_true", help="review board: re-test every agent's vote (6 months + last month)")
     ap.add_argument("--dry-run", action="store_true", help="review board: suggest changes only, don't apply them")
+    ap.add_argument("--intel", help="turn INTEL_* filters on for this run: ALIGN,VOL,... or 'all' / 'none'")
     ap.add_argument("--json-out", help="dashboard run: write results as JSON to this file")
     ap.add_argument("--progress-file", help="dashboard run: keep progress in this file")
     args = ap.parse_args()
@@ -1298,7 +1455,7 @@ def main() -> None:
     SETTINGS.update(target_rr=args.target_rr, partial=not args.no_partial, account=args.account, lot=args.lot,
                     news=not args.no_news, adaptive=args.perf_weights and not args.static_weights)
     SETTINGS.update(live_rules=not args.no_live_rules, stop_slip=args.stop_slip, f_session=args.only_session,
-                    f_trend=args.only_trend, f_hunt=args.only_hunt)
+                    f_trend=args.only_trend, f_hunt=args.only_hunt, intel=parse_intel(args.intel))
     if args.json_out:
         day = lambda d: int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
         out, prog = Path(args.json_out), Path(args.progress_file) if args.progress_file else None
@@ -1307,7 +1464,8 @@ def main() -> None:
                 res = asyncio.run(review(prog, apply=not args.dry_run))
                 rid = out.stem
                 if res["changes"] and res["apply"]:
-                    votes.change(res["votes_after"], "review board", res["changes"], res["summary"], rid)
+                    votes.change(res["votes_after"], "review board", res["changes"], res["summary"], rid,
+                                 intel_after=res.get("intel_after") or None)
                     res["applied"] = True
             elif args.health_check:
                 res = asyncio.run(health_check(day(args.start), day(args.end) + 86400, "auto" if args.auto else args.step,
@@ -1334,7 +1492,9 @@ def main() -> None:
               "BUY/SELL NOW plans": summarize([t for t in trades if t["kind"] == "now"]),
               "WAIT then BUY/SELL plans": summarize([t for t in trades if t["kind"] == "pending"])}
     agents = score_calls(hist, calls)
-    lines = plain_summary(s, groups, agents, counts, args.spread)
+    lines = plain_summary(s, groups, agents, counts, args.spread) + breakdown_lines(breakdowns(trades), args.spread)
+    if SETTINGS.get("intel"):
+        lines.insert(0, "Intel filters for this run: " + ", ".join(f"{k} {'on' if v else 'off'}" for k, v in SETTINGS["intel"].items()))
 
     print("\n=== RESULTS ===")
     for x in lines:

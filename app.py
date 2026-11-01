@@ -332,7 +332,8 @@ def backtest_run(start: str = Body(..., embed=True), end: str = Body(..., embed=
                  adaptive: bool = Body(False, embed=True), day_max_loss: float = Body(350, embed=True),
                  day_max_profit: float = Body(150, embed=True), live_rules: bool = Body(True, embed=True),
                  stop_slip: float = Body(0.0, embed=True), f_session: bool = Body(False, embed=True),
-                 f_trend: bool = Body(False, embed=True), f_hunt: bool = Body(False, embed=True)):
+                 f_trend: bool = Body(False, embed=True), f_hunt: bool = Body(False, embed=True),
+                 intel: str | None = Body(None, embed=True)):
     import re
     import subprocess
     import sys
@@ -356,6 +357,13 @@ def backtest_run(start: str = Body(..., embed=True), end: str = Body(..., embed=
     cmd += ["--day-max-loss", str(max(0.0, day_max_loss)), "--day-max-profit", str(max(0.0, day_max_profit))]
     cmd += ([] if live_rules else ["--no-live-rules"]) + (["--stop-slip", str(stop_slip)] if stop_slip else [])
     cmd += (["--only-session"] if f_session else []) + (["--only-trend"] if f_trend else []) + (["--only-hunt"] if f_hunt else [])
+    if intel:
+        import backtest as _btm
+        try:
+            _btm.parse_intel(intel)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+        cmd += ["--intel", intel]
     _bt.update(proc=subprocess.Popen(cmd, cwd=Path(__file__).parent, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL), id=run_id, started=time.time())
     return {"ok": True, "id": run_id}
@@ -466,10 +474,10 @@ def review_run(dry_run: bool = Body(False, embed=True)):
 def review_info():
     last = _review_latest()
     if last:
-        last = {k: last[k] for k in ("id", "made_at", "apply", "applied", "votes_before", "votes_after", "changes",
+        last = {k: last[k] for k in ("id", "made_at", "apply", "applied", "votes_before", "votes_after", "intel_after", "changes",
                                      "candidates", "confirm", "summary", "rules") if k in last}
     from agents import BUILT_IN
-    return {"votes": votes.state(), "log": votes.log()[-12:][::-1], "last": last,
+    return {"votes": votes.state(), "log": votes.log()[-12:][::-1], "last": last, "filters": _intel_flags(),
             "agents": [{"name": a.name, "label": a.label, "weight": a.weight} for a in BUILT_IN if a.votes and a.weight],
             "next_due": (last["made_at"] if last else time.time()) + REVIEW_EVERY_S}
 
@@ -512,6 +520,40 @@ def review_vote(agent: str = Body(..., embed=True), on: bool = Body(..., embed=T
     return {"ok": True}
 
 
+INTEL_FLAG_TEXT = {
+    "ALIGN": "No trade against 1H and 15m when both point the other way",
+    "SWEEP_BOS": "Entry needs a stop hunt + break, or a 5-minute break + retest",
+    "SESSION": "No new entry 17:00-19:00 New York unless setup quality is 70+",
+    "VOL": "Avoid abnormal volatility; skip stops wider than normal",
+    "ENTRY": "Skip late entries and blocked targets",
+    "NEWS_EXTRA": "Also avoid ISM, jobless claims and Fed speeches",
+    "SCORE_GATE": "Skip setups marked AVOID (quality below 55 or a blocking gate)",
+}
+
+
+def _intel_flags() -> list[dict]:
+    from core.intel.flags import all_flags, flag
+    saved = all_flags()
+    return [{"name": n, "on": flag(n), "text": t, **{k: (saved.get(n) or {}).get(k) for k in ("by", "at", "note")}}
+            for n, t in INTEL_FLAG_TEXT.items()]
+
+
+@app.get("/api/intel/flags")
+def intel_flags_info():
+    return {"flags": _intel_flags()}
+
+
+@app.post("/api/intel/flags")
+def intel_flag_set(name: str = Body(..., embed=True), on: bool = Body(..., embed=True)):
+    """Switch one quality filter on or off by hand (logged as 'you' in the review log, undo-able)."""
+    name = name.upper().removeprefix("INTEL_")
+    if name not in INTEL_FLAG_TEXT:
+        return {"ok": False, "error": "Unknown filter."}
+    votes.change(votes.off(), "you", [{"agent": "filter:" + name, "flag": name, "action": "on" if on else "off"}],
+                 "Changed by hand", intel_after={name: on})
+    return {"ok": True, "flags": _intel_flags()}
+
+
 @app.post("/api/review/apply")
 def review_apply(run_id: str = Body(..., embed=True)):
     """Apply a suggest-only review's changes (if the votes haven't changed since it ran)."""
@@ -520,7 +562,8 @@ def review_apply(run_id: str = Body(..., embed=True)):
         return {"ok": False, "error": "Only the latest review's suggestions can be applied."}
     if sorted(votes.off()) != sorted(last["votes_before"]):
         return {"ok": False, "error": "The votes changed since this review ran. Run a new review."}
-    votes.change(last["votes_after"], "you (approved the review board)", last["changes"], last["summary"], run_id)
+    votes.change(last["votes_after"], "you (approved the review board)", last["changes"], last["summary"], run_id,
+                 intel_after=last.get("intel_after") or None)
     return {"ok": True}
 
 

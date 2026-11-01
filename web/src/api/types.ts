@@ -40,7 +40,14 @@ export type Chief = {
   levels: unknown[]; reasons: string[]; warnings: string[]; ai_written: boolean
   today: { side: string; trend: string; tfs: string; text: string; buy_below: number; sell_above: number }
   day_range: number
+  quality?: Quality
 }
+export type QualityFactor = { name: string; label: string; ok: boolean | null; weight: number; points: number; text: string }
+export type Quality = {
+  score: number; band: string; avoid: boolean; label: string; avoid_reasons: string[]; factors: QualityFactor[]; text: string
+  flags_on?: string[]
+}
+export type IntelFlag = { name: string; on: boolean; text: string; by?: string | null; at?: number | null; note?: string | null }
 export type Analysis = {
   ai_enabled: boolean; generated_at: string; next_in_s: number
   spot: { price: number; updated_at: string; age_seconds: number; stale: boolean; price_source: string }
@@ -154,6 +161,7 @@ export type Review = {
     rules: { noise_usd: number; max_changes: number; min_voters: number }
   } | null
   agents: { name: string; label: string; weight: number }[]
+  filters?: IntelFlag[]
   next_due: number
 }
 export type ReviewedTrade = {

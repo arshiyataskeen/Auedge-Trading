@@ -48,11 +48,25 @@ def set_auto_apply(on: bool) -> None:
     _write(VOTES, {**state(), "auto_apply": bool(on)})
 
 
-def change(new_off: list[str], by: str, changes: list[dict], note: str = "", review_id: str | None = None) -> dict:
-    """Save a new set of switched-off votes and log it (with the previous set, for undo)."""
+def _intel_state() -> dict:
+    from core.intel.flags import all_flags
+    return {k: bool(v.get("on")) for k, v in all_flags().items() if isinstance(v, dict)}
+
+
+def change(new_off: list[str], by: str, changes: list[dict], note: str = "", review_id: str | None = None,
+           intel_after: dict | None = None) -> dict:
+    """Save a new set of switched-off votes (and, optionally, INTEL_* filter switches) and log it with the previous
+    state, for undo. Votes and filters share this one log."""
     before = off()
     entry = {"t": time.time(), "by": by, "before": before, "after": sorted(set(new_off)), "changes": changes,
              "note": note, "review": review_id}
+    if intel_after:
+        from core.intel.flags import set_flag
+        cur = _intel_state()
+        entry["intel_before"] = {k: cur.get(k, False) for k in intel_after}
+        entry["intel_after"] = {k: bool(v) for k, v in intel_after.items()}
+        for k, v in intel_after.items():
+            set_flag(k, bool(v), by, note)
     _write(VOTES, {**state(), "off": entry["after"]})
     _write(LOG, (log() + [entry])[-200:])
     return entry
@@ -64,9 +78,12 @@ def undo() -> dict | None:
     if not entries:
         return None
     last = entries[-1]
+    ib = last.get("intel_before") or {}
     return change(last["before"], "undo", [{"agent": a, "action": "on" if a in last["after"] else "off"}
-                                           for a in set(last["before"]) ^ set(last["after"])],
-                  note="Undid the change of " + time.strftime("%d %b %H:%M", time.localtime(last["t"])))
+                                           for a in set(last["before"]) ^ set(last["after"])] +
+                  [{"agent": "filter:" + k, "flag": k, "action": "on" if v else "off"} for k, v in ib.items()],
+                  note="Undid the change of " + time.strftime("%d %b %H:%M", time.localtime(last["t"])),
+                  intel_after=ib or None)
 
 
 def weights(base: dict[str, float]) -> dict[str, float]:

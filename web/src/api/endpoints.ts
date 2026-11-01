@@ -223,6 +223,9 @@ export const useReviewAuto = () => useReviewMutation((on: boolean) => sendOk<OkR
 /** POST /api/review/vote  { agent, on } */
 export const useReviewVote = () =>
   useReviewMutation((v: { agent: string; on: boolean }) => sendOk<OkResult>('POST', '/api/review/vote', v))
+/** POST /api/intel/flags  { name, on }: switch one quality filter by hand (logged, undo-able) */
+export const useIntelFlag = () =>
+  useReviewMutation((v: { name: string; on: boolean }) => sendOk<OkResult>('POST', '/api/intel/flags', v))
 /** POST /api/review/apply  { run_id } */
 export const useApplyReview = () => useReviewMutation((run_id: string) => sendOk<OkResult>('POST', '/api/review/apply', { run_id }))
 

@@ -14,6 +14,9 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from core.indicators import atr
+from core.intel.align import alignment, opposes
+from core.intel.flags import flag
+from core.intel.levels import compute_levels, level_lines
 from core.liquidity import Pool, build_stop_map
 from core.models import AgentResult, Level, MarketContext
 from core.structure import highs, lows, tf_bias
@@ -71,6 +74,8 @@ class ChiefReport(BaseModel):
     warnings: list[str] = []
     ai_written: bool = False
     today: dict = {}        # plain "today's trend" summary, filled by today_view()
+    intel: dict = {}        # extra display data (levels, H1/M15 alignment); filled only when computed
+    quality: dict = {}      # setup quality score (0-100, not a probability), factors, band, AVOID label
     day_range: float | None = None   # average daily range (14-day ATR of closed daily candles): how far gold usually moves in a day
 
 
@@ -100,6 +105,36 @@ def word_for(score: float) -> str:
 
 
 def fmt(p): return f"{p:,.0f}" if p is not None else "n/a"
+
+
+def _intel(ctx: MarketContext, rep: ChiefReport) -> None:
+    """Fill rep.intel (levels + alignment) and add plain reason lines. Display only; never raises."""
+    try:
+        m15, h1 = ctx.struct("15m"), ctx.struct("1h")
+        if not m15 or not h1:
+            return
+        c15, c1 = m15.closed(), h1.closed()
+        lv = compute_levels(c15, c1, rep.price)
+        al = alignment(c1, c15)
+        rep.intel = {"levels": dict(lv.__dict__),
+                     "align": {"state": al.state, "h1": al.h1, "m15": al.m15, "text": al.text}}
+        rep.reasons.extend(level_lines(lv, ctx.sp))
+        rep.reasons.append(al.text)
+    except Exception:
+        rep.intel = {}
+
+
+def _quality(ctx: MarketContext, rep: ChiefReport, side: str, plan: dict | None) -> list[str]:
+    """Fill rep.quality (setup score + AVOID label). Returns the reasons that turn the trade into WAIT, which is
+    non-empty only when the matching INTEL_* flag is on. Never raises."""
+    try:
+        from core.intel.score import build_quality
+        q, blocks = build_quality(ctx, rep, side, plan)
+        rep.quality = q
+        return blocks
+    except Exception:  # noqa: BLE001 - display only
+        rep.quality = {}
+        return []
 
 
 def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, float],
@@ -169,6 +204,7 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
         rep.plan = TradePlan(kind="none", action="NO TRADE", steps=[rep.verdict])
         return rep
 
+    _intel(ctx, rep)
     m15 = infos.get("15m")
     bos15 = m15["bos"] if m15 and m15["recent_bos"] else None
     hunt = rep.recent_hunt
@@ -222,6 +258,14 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
         stop = entry - s * risk
         t1 = next((x.price for x in targets_pool if abs(x.price - entry) >= 1.2 * risk), entry + s * 1.5 * risk)
         rep.bias = side if agents_agree else "WAIT"
+        if rep.bias == side and flag("ALIGN") and opposes(rep.intel.get("align", {}).get("state", ""), side):
+            rep.bias = "WAIT"
+            why += ", but 1H and 15m are aligned against it"
+        cand = {"side": side, "entry_lo": entry - 0.15 * a1, "entry_hi": entry + 0.15 * a1, "stop": stop, "t1": t1}
+        blocks = _quality(ctx, rep, side, cand)
+        if rep.bias == side and blocks:
+            rep.bias = "WAIT"
+            why += ", but the quality filters say avoid (" + blocks[0].rstrip(".") + ")"
         if rep.bias == side:
             rep.intraday_label = f"{side} NOW"
             rep.headline = f"{side}: bias and trigger aligned"
@@ -250,6 +294,8 @@ def chief(ctx: MarketContext, results: list[AgentResult], weights: dict[str, flo
     # Watch alert (not a trade): in the 6-month study, entering these "wait for the hunt" setups lost money.
     # The level is still useful: if the hunt happens, the next analysis usually turns it into a NOW plan.
     pool = near_below if s > 0 else near_above
+    if not rep.quality:
+        _quality(ctx, rep, side, None)
     if pool:
         entry = pool.price
         rep.plan = TradePlan(

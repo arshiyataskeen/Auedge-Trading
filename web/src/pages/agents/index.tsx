@@ -7,6 +7,7 @@ import QueryCard from '../../components/QueryCard'
 import Tabs from '../../components/Tabs'
 import AgentGrid from './AgentCard'
 import ReviewBoard from './ReviewBoard'
+import QualityCard from '../../components/QualityCard'
 import TrackRecord from './TrackRecord'
 import TradeReviewer from './TradeReviewer'
 
@@ -41,7 +42,7 @@ export default function AgentsPage() {
           <ReviewBoard />
           <TradeReviewer />
           <QueryCard query={analysis} title="Agents">
-            {(d) => <><div className="mb-3"><NewsIntelCard {...newsIntelProps(d.agents)} /></div><AgentGrid d={d} /></>}
+            {(d) => <><div className="mb-3"><QualityCard q={d.chief.quality} /></div><div className="mb-3"><NewsIntelCard {...newsIntelProps(d.agents)} /></div><AgentGrid d={d} /></>}
           </QueryCard>
         </div>
         <div className="pt-3">

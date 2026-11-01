@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  qk, useApplyReview, useBacktestStatus, useReview, useRefreshAnalysis, useReviewAuto, useReviewVote, useRunReview, useUndoReview,
+  qk, useApplyReview, useBacktestStatus, useReview, useRefreshAnalysis, useReviewAuto, useReviewVote, useIntelFlag, useRunReview, useUndoReview,
 } from '../../api/endpoints'
 import type { Review } from '../../api/types'
 import QueryCard from '../../components/QueryCard'
@@ -42,13 +42,13 @@ export default function ReviewBoard() {
     was.current = running
   }, [running, qc])
 
-  const vote = useReviewVote(), run = useRunReview(), undo = useUndoReview(), auto = useReviewAuto(), apply = useApplyReview()
+  const flagM = useIntelFlag(), vote = useReviewVote(), run = useRunReview(), undo = useUndoReview(), auto = useReviewAuto(), apply = useApplyReview()
   const [err, setErr] = useState('')
   const act = async (fn: () => Promise<unknown>) => {
     setErr('')
     try { await fn() } catch (e) { setErr((e as Error).message) }
   }
-  const anyPending = vote.isPending || run.isPending || undo.isPending || auto.isPending || apply.isPending || refresh.isPending
+  const anyPending = flagM.isPending || vote.isPending || run.isPending || undo.isPending || auto.isPending || apply.isPending || refresh.isPending
 
   const actThenRefresh = async (fn: () => Promise<unknown>) => {
     setErr('')
@@ -60,6 +60,10 @@ export default function ReviewBoard() {
     if (!window.confirm(`${turnOn ? 'Switch ON' : 'Switch OFF'} the ${labelOf(name)} vote? It is logged and can be undone.`)) return
     void actThenRefresh(() => vote.mutateAsync({ agent: name, on: turnOn }))
   }
+  const onFilter = (name: string, turnOn: boolean) => {
+    if (!window.confirm(`${turnOn ? 'Switch ON' : 'Switch OFF'} the ${name} filter? It is logged and can be undone.`)) return
+    void actThenRefresh(() => flagM.mutateAsync({ name, on: turnOn }))
+  }
   const onUndo = () => {
     if (!window.confirm('Undo the last vote change?')) return
     void actThenRefresh(() => undo.mutateAsync())
@@ -69,16 +73,16 @@ export default function ReviewBoard() {
   return (
     <QueryCard query={review} title="Review board">
       {(d) => <Board d={d} err={err} anyPending={anyPending} running={running} busy={busy} st={st}
-        onVote={onVote} onUndo={onUndo} onRun={onRun}
+        onVote={onVote} onFilter={onFilter} onUndo={onUndo} onRun={onRun}
         onApply={(id) => void actThenRefresh(() => apply.mutateAsync(id))}
         onAuto={(on) => void act(() => auto.mutateAsync(on))} />}
     </QueryCard>
   )
 }
 
-function Board({ d, err, anyPending, running, busy, st, onVote, onUndo, onRun, onApply, onAuto }: {
+function Board({ d, err, anyPending, running, busy, st, onVote, onFilter, onUndo, onRun, onApply, onAuto }: {
   d: Review; err: string; anyPending: boolean; running: boolean; busy: boolean; st: ReturnType<typeof useBacktestStatus>['data']
-  onVote: (name: string, on: boolean) => void; onUndo: () => void; onRun: () => void; onApply: (id: string) => void; onAuto: (on: boolean) => void
+  onVote: (name: string, on: boolean) => void; onFilter: (name: string, on: boolean) => void; onUndo: () => void; onRun: () => void; onApply: (id: string) => void; onAuto: (on: boolean) => void
 }) {
   const off = new Set(d.votes.off)
   const L = d.last
@@ -111,6 +115,19 @@ function Board({ d, err, anyPending, running, busy, st, onVote, onUndo, onRun, o
         })}
       </div>
       <Meta cls="mb-2.5 mt-1">● votes · ○ switched off · click to change by hand (logged, can be undone)</Meta>
+      {d.filters && d.filters.length > 0 && (<>
+        <div className="mb-1 text-[12px] font-semibold">Filters</div>
+        <div role="group" aria-label="Filters" className="flex flex-wrap gap-1.5">
+          {d.filters.map((f) => (
+            <button key={f.name} type="button" aria-pressed={f.on} disabled={anyPending} onClick={() => onFilter(f.name, !f.on)}
+              title={`${f.text}. ${f.on ? 'ON' : 'OFF'}${f.by ? ` (by ${f.by})` : ''}. Click to change.`}
+              className={`rounded-[14px] border px-2.5 py-1 text-[12.5px] disabled:opacity-60 ${f.on ? 'border-transparent bg-up-bg text-up' : 'border-line2 text-muted'}`}>
+              {f.on ? '●' : '○'} {f.name}
+            </button>
+          ))}
+        </div>
+        <Meta cls="mb-2.5 mt-1">Quality filters, tested by the same rules: R per trade better in both 6-month halves, last month agrees, drawdown not higher; they share the 2-changes-a-week budget. Off = display only.</Meta>
+      </>)}
 
       {running ? (
         <div className="mt-2.5">

@@ -6,6 +6,7 @@ import { CrowdCard } from '../agents/AgentCard'
 import { LABELS, cls } from '../agents/logic'
 import { Card, Sect } from '../journal/ui'
 import PsychCard, { useMyDay } from './Psych'
+import QualityCard from '../../components/QualityCard'
 
 const TONE = { BUY: 'border-t-2 border-t-up', SELL: 'border-t-2 border-t-down', NA: '', WAIT: '' }
 const BTONE = { BUY: 'text-up', SELL: 'text-down', NA: 'text-warn', WAIT: 'text-text' }
@@ -39,6 +40,7 @@ export default function PlanPanel({ d }: { d: Analysis }) {
           ＋ Add this {plan.side} NOW call to my journal
         </Link>
       )}
+      <QualityCard q={c.quality} />
       <CrowdCard a={crowd} />
       <NewsIntelCard compact {...newsIntelProps(d.agents)} />
       <PsychCard psy={psy} plan={plan} genAt={d.generated_at} userStop={userStop} />

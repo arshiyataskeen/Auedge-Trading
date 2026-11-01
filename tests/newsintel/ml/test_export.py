@@ -151,7 +151,6 @@ def _near_event(t, events):
 def test_thresholds(ds, res, mins, exported):
     art = exported[2]
     max_p = np.vstack(res.stacker_probs).max(axis=1)
-    assert art.uncertain_max_p == pytest.approx(np.percentile(max_p, 20))
 
     # neighbour distances, computed row by row with the model's own neighbours()
     def r(ix):
@@ -165,7 +164,20 @@ def test_thresholds(ds, res, mins, exported):
             same = f.train[ds.kind[f.train] == ds.kind[i]]
             d.append(bhattacharyya(r(nb), r(same)))
     assert len(d) == len(max_p)
-    assert art.uncertain_bhatt == pytest.approx(np.percentile(d, 80))
+    # one tail share q for both rules, chosen so the UNION flags uncertain_target (20 %) of OOS rows
+    d = np.array(d)
+    q = art.uncertain_q
+    assert 0 < q <= E.UNCERTAIN_TARGET
+    assert art.uncertain_max_p == pytest.approx(np.percentile(max_p, 100 * q))
+    assert art.uncertain_bhatt == pytest.approx(np.nanpercentile(d, 100 * (1 - q)))
+    union = (max_p < art.uncertain_max_p) | (d > art.uncertain_bhatt)
+    assert abs(union.mean() - E.UNCERTAIN_TARGET) <= 1.5 / len(d)
+    assert art.uncertain_share == pytest.approx(union.mean())
+    meta = exported[1]
+    assert meta["uncertain_target"] == E.UNCERTAIN_TARGET == 0.20
+    assert meta["uncertain_share"] == pytest.approx(union.mean()) and meta["uncertain_q"] == pytest.approx(q)
+    assert meta["uncertain_share_max_p"] == pytest.approx((max_p < art.uncertain_max_p).mean())
+    assert meta["uncertain_share_bhatt"] == pytest.approx((d > art.uncertain_bhatt).mean())
 
     # M5 range / ATR(14) of 5-minute bars outside every event window; reference via core.indicators.atr
     bars = resample(mins, 300, int(mins.t[-1]) + 60, 10**6)
@@ -260,3 +272,14 @@ def test_cli_rejects_bad_until(capsys):
             main(["--export", "--until", bad])
         assert e.value.code == 2
     assert "YYYY-MM-DD" in capsys.readouterr().err
+
+
+def test_calibrate_uncertain_union_hits_target():
+    rng = np.random.default_rng(0)
+    max_p, d = rng.random(500), rng.random(500)
+    q, lo_p, hi_b, share = E.calibrate_uncertain(max_p, d, 0.20)
+    union = (max_p < lo_p) | (d > hi_b)
+    assert abs(union.mean() - 0.20) <= 1.5 / 500 and share == pytest.approx(union.mean())
+    assert 0.10 < q < 0.20  # independent rules: q ~ 1 - sqrt(0.8)
+    same = E.calibrate_uncertain(max_p, 1 - max_p, 0.20)  # perfectly overlapping rules: q = target
+    assert same[0] == pytest.approx(0.20, abs=0.01)

@@ -26,8 +26,9 @@ from ..minutes import DATA, Minutes, _from_npz
 MODELS_DIR = DATA / "news_intel" / "models"
 MINUTES_CACHE = DATA / "news_intel" / "xau_1m.npz"
 PICKLE, META = "models.pkl", "meta.json"
-UNCERTAIN_MAX_P_PCT = 20  # stacker confidence below this percentile of out-of-sample rows = "uncertain"
-UNCERTAIN_BHATT_PCT = 80  # neighbours' reactions less alike than this percentile of out-of-sample rows = "uncertain"
+UNCERTAIN_TARGET = 0.20  # share of out-of-sample rows flagged "uncertain" by the union of the two rules below
+# rule 1: stacker confidence below its q-quantile; rule 2: neighbours' reactions less alike than their (1-q)-quantile.
+# One q for both, chosen by bisection so that the union (not each rule) flags UNCERTAIN_TARGET of OOS rows.
 M5_PCT = 99
 M5_ATR_N = 14
 LABEL_HORIZON = 120 * 60  # longest label window (label120), seconds
@@ -56,6 +57,8 @@ class Artifacts:
     knn: object = None  # KNN fitted on all rows: scales a live row into neighbours_X's space
     neighbour_k: int = 7
     trained_until: str | None = None
+    uncertain_q: float | None = None  # tail share used by both uncertain rules
+    uncertain_share: float | None = None  # share of OOS rows the union flags (~UNCERTAIN_TARGET)
 
 
 def _cut(until: str) -> int:
@@ -104,6 +107,32 @@ def oos_bhattacharyya(ds: Dataset) -> np.ndarray:
             same = f.train[kind_tr == ds.kind[i]]
             out.append(bhattacharyya(_ratio(ds, nb), _ratio(ds, same)) if len(same) else np.nan)
     return np.array(out)
+
+
+def _union(max_p: np.ndarray, d: np.ndarray, q: float) -> tuple[float, float, float]:
+    lo_p = float(np.percentile(max_p, 100 * q))
+    hi_b = float(np.nanpercentile(d, 100 * (1 - q)))
+    with np.errstate(invalid="ignore"):
+        flag = (max_p < lo_p) | (d > hi_b)  # a NaN distance never flags
+    return lo_p, hi_b, float(flag.mean())
+
+
+def calibrate_uncertain(max_p, d, target: float = UNCERTAIN_TARGET, iters: int = 60):
+    """(q, max-p threshold, distance threshold, achieved union share): one tail share q for both rules, bisected
+    on [0, target] so the union of "max-p below its q-quantile" and "distance above its (1-q)-quantile" flags
+    `target` of the rows (as close as the discrete data allows, never above it by more than one row)."""
+    max_p, d = np.asarray(max_p, dtype=float), np.asarray(d, dtype=float)
+    lo, hi = 0.0, float(target)
+    for _ in range(iters):
+        mid = (lo + hi) / 2
+        if _union(max_p, d, mid)[2] > target:
+            hi = mid
+        else:
+            lo = mid
+    # pick the end of the bracket whose share is closer to the target
+    best = min((lo, hi), key=lambda q: abs(_union(max_p, d, q)[2] - target))
+    lo_p, hi_b, share = _union(max_p, d, best)
+    return best, lo_p, hi_b, share
 
 
 def _wilder_atr(tr: np.ndarray, n: int) -> np.ndarray:
@@ -164,13 +193,14 @@ def export(ds: Dataset, out: Path = MODELS_DIR, until: str | None = None, minute
     meta_rows = {"t": ds.t.copy(), "kind": ds.kind.copy(), "move60": ds.move60.copy(),
                  "z": np.where(ds.X[:, zm] > 0.5, np.nan, ds.X[:, zc])}
     max_p = np.vstack(res.stacker_probs).max(axis=1)
+    dist = oos_bhattacharyya(ds)
+    unc_q, unc_p, unc_b, unc_share = calibrate_uncertain(max_p, dist, UNCERTAIN_TARGET)
     ratios = m5_range_ratio(minutes, ds.t)
     art = Artifacts(
         primary=primary, primary_name=name, stacker=stacker, technical=TechnicalOnly().fit(ds, alln),
         temperature=float(T), vol_table=table, vol_kind=by_kind, vol_overall=overall,
         stats_rows=describe(ds, alln), neighbours_X=knn._space(ds, alln), neighbours_meta=meta_rows,
-        uncertain_max_p=float(np.percentile(max_p, UNCERTAIN_MAX_P_PCT)),
-        uncertain_bhatt=float(np.nanpercentile(oos_bhattacharyya(ds), UNCERTAIN_BHATT_PCT)),
+        uncertain_max_p=unc_p, uncertain_bhatt=unc_b, uncertain_q=float(unc_q), uncertain_share=unc_share,
         m5_range_p99=float(np.percentile(ratios, M5_PCT)) if len(ratios) else float("nan"),
         go_live=bool(res.go_live_forecast),
         trained_through=datetime.fromtimestamp(int(ds.t[-1]), timezone.utc).strftime("%Y-%m-%d"),
@@ -182,6 +212,10 @@ def export(ds: Dataset, out: Path = MODELS_DIR, until: str | None = None, minute
         pickle.dump(art, f, protocol=5)
     meta = {"primary_name": art.primary_name, "temperature": art.temperature, "vol_overall": art.vol_overall,
             "uncertain_max_p": art.uncertain_max_p, "uncertain_bhatt": art.uncertain_bhatt,
+            "uncertain_target": UNCERTAIN_TARGET, "uncertain_q": art.uncertain_q,
+            "uncertain_share": art.uncertain_share,
+            "uncertain_share_max_p": float((max_p < unc_p).mean()),
+            "uncertain_share_bhatt": float(np.mean(np.nan_to_num(dist, nan=-np.inf) > unc_b)),
             "m5_range_p99": art.m5_range_p99, "go_live": art.go_live, "trained_through": art.trained_through,
             "trained_until": until, "version": art.version, "n_rows": int(len(ds.t))}
     (out / META).write_text(json.dumps(meta, indent=2), encoding="utf-8")

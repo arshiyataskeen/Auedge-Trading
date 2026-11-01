@@ -11,14 +11,25 @@ time before it). The expected move is the typical first-hour move for this kind 
 |move60| / ATR15 of past releases of the kind, times the current 15-minute ATR) - volatility scaling, not a news
 forecast. Chances are advisory (stacker on the temperature-scaled primary model).
 
+Data lag: the live 5m/15m/1h/4h/1d candles are gold FUTURES from Yahoo, delayed about 10 minutes. `m5_ratio` and the
+pre-release features therefore describe the market as of ~10 minutes ago, and any gate built on them (abnormal
+volatility) fires about 10-15 minutes late. Ranges and ATRs do not depend on the futures-spot gap; price levels
+(the expected range) are converted to spot with `ctx.futures_gap`.
+
+Weekly jobless claims are not in the live calendar feed (medium impact) but are in the training calendar, so they
+are counted from the FRED ICSA release days (cached copy; past days only, so no look-ahead), falling back to
+"every Thursday 08:30" when the cache does not cover the date.
+
+The FRED lookup after a release can take a long time; the app calls `build_intel_async`, which never waits for it.
+
 Nothing here raises on missing data: short or stale candles, a FRED outage, missing models or an unknown title
 give an `Intel` with a plain note instead.
 """
 from __future__ import annotations
 
-import json
-import os
+import asyncio
 import re
+from bisect import bisect_right
 import sys
 import time
 from dataclasses import dataclass, field
@@ -121,13 +132,48 @@ def _ny(t: int) -> datetime:
     return datetime.fromtimestamp(t, NY)
 
 
-def _is_claims_slot(t: int) -> bool:
-    """Weekly jobless claims come out every Thursday 08:30 New York (the calendar feed lists them as medium)."""
+_claims_memo: dict = {"mtime": None, "days": None}
+
+
+def _claims_days() -> list[str] | None:
+    """Sorted New York days on which ICSA (weekly claims) was first published, from the cached FRED copy."""
+    f = fred.CACHE / "ICSA.json"
+    try:
+        mt = f.stat().st_mtime
+        if _claims_memo["mtime"] != mt:
+            rels = first_releases(fred.fetch_vintages("ICSA", offline=True), "level")
+            _claims_memo.update(mtime=mt, days=sorted({r.release_date for r in rels}))
+        return _claims_memo["days"]
+    except Exception:  # noqa: BLE001 - no cache: Thursday rule
+        return None
+
+
+def _claims_ts(day: str) -> int:
+    y, m, d = map(int, day.split("-"))
+    return int(datetime(y, m, d, 8, 30, tzinfo=NY).timestamp())
+
+
+def _claims_at(t: int) -> bool:
+    """Weekly jobless claims released at t (08:30 New York)? FRED release days when the cache covers the date,
+    else every Thursday 08:30."""
     d = _ny(t)
-    return d.weekday() == 3 and (d.hour, d.minute) == (8, 30)
+    if (d.hour, d.minute) != (8, 30):
+        return False
+    day, days = d.strftime("%Y-%m-%d"), _claims_days()
+    if days and day <= days[-1]:
+        return day in set(days)
+    return d.weekday() == 3
 
 
 def _last_claims_before(t: int) -> int:
+    days = _claims_days()
+    if days:
+        i = bisect_right(days, _ny(t).strftime("%Y-%m-%d"))
+        past = [x for x in (_claims_ts(dd) for dd in days[max(0, i - 2):i]) if x < t]
+        # the cache covers t (a later release is known) or saw a release within a week: trust it, even across a
+        # gap such as the 2025 shutdown; otherwise it is simply out of date and the Thursday rule fills in
+        if past and (i < len(days) or t - past[-1] <= 8 * 86400):
+            return past[-1]
     d = _ny(t).date()
     for back in range(0, 8):
         x = d - timedelta(days=back)
@@ -269,19 +315,18 @@ def _cached_rows(sid: str) -> list:
     return fred.fetch_vintages(sid, offline=True)
 
 
-def _download_rows(sid: str) -> list:
-    """Fresh vintages from FRED, saved to the same cache file fred.fetch_vintages uses."""
-    fred.load_env()
-    key = os.environ.get("FRED_API_KEY")
-    if not key:
-        raise RuntimeError("FRED_API_KEY is not set")
-    rows = fred._download(sid, key)
-    f = fred.CACHE / f"{sid}.json"
-    f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(rows))
-    tmp.replace(f)
-    return rows
+def _cached_surprise(kind: str, t: int) -> tuple[float | None, float | None, str | None]:
+    """Remembered or on-disk FRED copy only: never downloads."""
+    if (kind, t) in _found:
+        z, core = _found[(kind, t)]
+        return z, core, None
+    try:
+        z, core, why = surprise(kind, t, _cached_rows)
+    except Exception:  # noqa: BLE001 - no cached copy yet
+        return None, None, NOT_PUBLISHED
+    if z is not None:
+        _found[(kind, t)] = (z, core)
+    return z, core, why
 
 
 def _default_surprise(kind: str, t: int) -> tuple[float | None, float | None, str | None]:
@@ -296,7 +341,7 @@ def _default_surprise(kind: str, t: int) -> tuple[float | None, float | None, st
         z, core, why = None, None, NOT_PUBLISHED
     if z is None and time.time() - _tried.get(key, 0.0) >= FRED_RETRY_S:
         _tried[key] = time.time()
-        z, core, why = surprise(kind, t, _download_rows)
+        z, core, why = surprise(kind, t, fred.download)
     if z is not None:
         _found[key] = (z, core)
     return z, core, why
@@ -308,6 +353,8 @@ def _lookup_surprise(kind: str, t: int, fetch) -> tuple[float | None, float | No
     if fetch is False or fetch is None:
         return None, None, NOT_PUBLISHED
     try:
+        if fetch == "cached":
+            return _cached_surprise(kind, t)
         if callable(fetch):
             return surprise(kind, t, fetch)
         return _default_surprise(kind, t)
@@ -449,7 +496,7 @@ def build_intel(ctx: MarketContext, now: float, art, fetch=True, events: list[di
     intel.event = {"kind": kind, "name": _name(prim_e, kind), "t": chosen}
     others = [DISPLAY[k] for k in kinds[1:]] + [e.get("name", "") for e, k in g if not k]
     intel.others = list(dict.fromkeys(others))
-    n_releases = len(kinds) + (1 if _is_claims_slot(chosen) and "CLAIMS" not in kinds else 0)
+    n_releases = len(kinds) + (1 if _claims_at(chosen) and "CLAIMS" not in kinds else 0)
 
     z = core_z = None
     if intel.phase == "post":
@@ -484,9 +531,18 @@ def build_intel(ctx: MarketContext, now: float, art, fetch=True, events: list[di
         return intel
 
     intel.expected_move = expected_ratio(art, kind, z) * float(raw["atr15"])
-    price = _price(ctx, _done(ctx.struct("15m"), 900, now_i))
+    if intel.phase == "pre":
+        price = _price(ctx, _done(ctx.struct("15m"), 900, now_i))
+    else:  # the first-hour move is measured from the release: centre on the price then
+        at = _done(_m5_set(ctx), 300, chosen) or _done(ctx.struct("15m"), 900, chosen)
+        price = ctx.sp(at[-1].c) if at and at[-1].t + 900 >= chosen - STALE_S else None
     if price is not None:
-        intel.expected_range = (price - intel.expected_move, price + intel.expected_move)
+        rng = (price - intel.expected_move, price + intel.expected_move)
+        if intel.phase == "post" and now_i > chosen + 3600:
+            intel.notes.append(f"Typical first-hour range (passed): {rng[0]:.2f} - {rng[1]:.2f}, around the price at the "
+                               "release.")
+        else:
+            intel.expected_range = rng
     try:
         intel.probs, intel.tech_probs = _chances(art, row, kind)
         intel.coherence, intel.similar = neighbours(art, row, kind)
@@ -497,3 +553,42 @@ def build_intel(ctx: MarketContext, now: float, art, fetch=True, events: list[di
     intel.uncertain = (intel.probs is None or max(intel.probs.values()) < art.uncertain_max_p
                        or (intel.coherence is not None and intel.coherence > art.uncertain_bhatt))
     return intel
+
+
+# ---------------------------------------------------------------- async entry point for the app
+
+_inflight: dict[tuple[str, int], asyncio.Task] = {}
+
+
+def _timed_out(now: float) -> Intel:
+    return Intel(phase="none", notes=["News context took too long to build; skipped this time."])
+
+
+async def build_intel_async(ctx: MarketContext, now: float, art, timeout: float = 8.0,
+                            events: list[dict] | None = None) -> Intel:
+    """build_intel in a worker thread under `timeout`, using only the remembered / on-disk surprise. After a
+    release whose surprise is still unknown it starts one background FRED lookup per release (the 10-minute
+    throttle in _default_surprise applies), so a later call picks the surprise up. Never raises, never waits
+    for FRED."""
+    try:
+        intel = await asyncio.wait_for(asyncio.to_thread(build_intel, ctx, now, art, "cached", events), timeout)
+    except asyncio.TimeoutError:
+        return _timed_out(now)
+    except Exception as e:  # noqa: BLE001 - never take the agent down
+        print(f"[newsintel] build failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return Intel(phase="none", notes=["News context unavailable this time."])
+    ev = intel.event
+    if intel.phase == "post" and intel.surprise_z is None and ev and ev["kind"] in RELEASES:
+        key = (ev["kind"], int(ev["t"]))
+        task = _inflight.get(key)
+        if (task is None or task.done()) and key not in _found                 and time.time() - _tried.get(key, 0.0) >= FRED_RETRY_S:
+            _inflight[key] = asyncio.create_task(_background_surprise(*key))
+    return intel
+
+
+async def _background_surprise(kind: str, t: int) -> None:
+    try:
+        await asyncio.to_thread(_default_surprise, kind, t)
+    except Exception as e:  # noqa: BLE001 - logged; the next window retries
+        print(f"[newsintel] background surprise for {kind} failed: {type(e).__name__}: {str(e)[:200]}",
+              file=sys.stderr)

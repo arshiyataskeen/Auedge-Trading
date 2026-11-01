@@ -158,3 +158,41 @@ def test_missing_week_and_quarter():
          _row("2024-10-01", "2025-01-30", 102)]
     out = fred.first_releases(q, "saar_qoq")
     assert out[0].actual is not None and out[1].actual is None
+
+
+def test_download_concurrent_writes_leave_valid_cache(tmp_path, monkeypatch):
+    """Two threads downloading the same series never leave a torn or temp-named cache file."""
+    import threading
+    import time as _time
+    monkeypatch.setattr(fred, "CACHE", tmp_path)
+    monkeypatch.setenv("FRED_API_KEY", "test-key")
+    monkeypatch.setattr(fred, "load_env", lambda: None)
+    big = [_row(f"2020-01-{1 + i % 28:02d}", "2020-02-01", i) for i in range(20000)]
+
+    def slow(series, key):
+        _time.sleep(0.05)
+        return big
+
+    monkeypatch.setattr(fred, "_download", slow)
+    errs = []
+
+    def go():
+        try:
+            assert fred.download("ICSA") == big
+        except Exception as e:  # noqa: BLE001
+            errs.append(e)
+
+    ts = [threading.Thread(target=go) for _ in range(4)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert not errs
+    assert json.loads((tmp_path / "ICSA.json").read_text()) == big
+    assert [p.name for p in tmp_path.iterdir()] == ["ICSA.json"]
+
+
+def test_download_without_key_raises(tmp_path, monkeypatch):
+    monkeypatch.setattr(fred, "CACHE", tmp_path)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setattr(fred, "load_env", lambda: None)
+    with pytest.raises(RuntimeError, match="FRED_API_KEY"):
+        fred.download("ICSA")

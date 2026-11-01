@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -79,10 +81,54 @@ def fetch_vintages(series: str, offline: bool = False) -> list[dict]:
             return json.loads(f.read_text())
         raise RuntimeError(f"FRED_API_KEY is not set and there is no cached copy of {series}")
     rows = _download(series, key)
-    f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(rows))
-    tmp.replace(f)  # atomic: a reader never sees half of it
+    _write_cache(series, rows)
+    return rows
+
+
+_locks: dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+REPLACE_TRIES = 5
+
+
+def _lock(series: str) -> threading.Lock:
+    with _locks_guard:
+        return _locks.setdefault(series, threading.Lock())
+
+
+def _write_cache(series: str, rows: list[dict]) -> None:
+    """Write CACHE/<series>.json through a unique temp file + os.replace, one writer per series at a time.
+
+    On Windows os.replace can fail with PermissionError while another process is reading the file: retry briefly,
+    then give up on the cache (the rows are still returned to the caller)."""
+    f = CACHE / f"{series}.json"
+    with _lock(series):
+        f.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=f"{series}.", suffix=".tmp", dir=f.parent)
+        try:
+            with os.fdopen(fd, "w") as fh:
+                fh.write(json.dumps(rows))
+            for i in range(REPLACE_TRIES):
+                try:
+                    os.replace(tmp, f)  # atomic: a reader never sees half of it
+                    return
+                except PermissionError:
+                    if i == REPLACE_TRIES - 1:
+                        print(f"[fred] could not update the cache of {series} (file in use)")
+                        return
+                    time.sleep(0.1 * (i + 1))
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+
+
+def download(series: str) -> list[dict]:
+    """Fresh vintages of a series from FRED (ignoring the cache age), saved to the cache. Needs FRED_API_KEY."""
+    load_env()
+    key = os.environ.get("FRED_API_KEY")
+    if not key:
+        raise RuntimeError("FRED_API_KEY is not set")
+    rows = _download(series, key)
+    _write_cache(series, rows)
     return rows
 
 

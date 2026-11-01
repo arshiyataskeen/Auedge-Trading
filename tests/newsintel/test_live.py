@@ -529,3 +529,141 @@ def test_real_fred_surprise_matches_stored():
             assert z is None, (kind, t)
         else:
             assert z is not None and abs(z - stored) < 1e-9, (kind, t, z, stored)
+
+
+# ---------------------------------------------------------------- fix round 1
+
+def test_post_range_is_centred_on_release_price(walk):
+    now = T + 40 * 60
+    it = _intel(walk, now)
+    done = resample(walk, 300, T, 10)  # 5m candles finished by the release
+    p0 = round(done[-1].c, 2)
+    assert sum(it.expected_range) / 2 == pytest.approx(p0)
+    assert it.expected_range[1] - it.expected_range[0] == pytest.approx(2 * it.expected_move)
+
+
+def test_post_range_after_first_hour_is_a_note_not_a_forward_range(walk):
+    it = _intel(walk, T + 75 * 60)
+    assert it.phase == "post" and it.expected_move is not None
+    assert it.expected_range is None
+    assert any("first-hour range (passed)" in n for n in it.notes)
+
+
+def test_claims_days_from_fred_cache(walk, monkeypatch):
+    """A holiday week: claims came out Wednesday 08:30, not Thursday; the FRED release days win."""
+    fri = int(datetime(2024, 7, 5, 8, 30, tzinfo=NY).timestamp())
+    m = _walk(9, fri + 3 * 3600)
+    monkeypatch.setattr(live, "_claims_days", lambda: ["2024-06-27", "2024-07-03", "2024-07-11"])
+    it = live.build_intel(ctx_from_minutes(m, fri - 3600), fri - 3600, fake_art(), fetch=False,
+                          events=[{"t": fri, "name": "Jobs report (NFP)", "kind": "NFP"}])
+    assert it.features["hours_since_prev"] == pytest.approx(48.0)
+    # a Thursday 08:30 without a claims release in a covered week does not count as a release
+    thu = int(datetime(2024, 7, 4, 8, 30, tzinfo=NY).timestamp())
+    assert not live._claims_at(thu)
+    assert live._claims_at(int(datetime(2024, 7, 3, 8, 30, tzinfo=NY).timestamp()))
+
+
+def test_claims_fall_back_to_thursday_rule_without_cache(monkeypatch):
+    monkeypatch.setattr(live, "_claims_days", lambda: None)
+    assert live._claims_at(int(datetime(2024, 7, 4, 8, 30, tzinfo=NY).timestamp()))
+    fri = int(datetime(2024, 7, 5, 8, 30, tzinfo=NY).timestamp())
+    assert live._last_claims_before(fri) == fri - 86400
+    # cache that ends long before t: Thursday rule too
+    monkeypatch.setattr(live, "_claims_days", lambda: ["2023-01-05"])
+    assert live._last_claims_before(fri) == fri - 86400
+
+
+def _vintage_series():
+    rng = np.random.default_rng(5)
+    level = 250.0 * np.cumprod(1 + rng.normal(0.002, 0.001, 50))
+    level[-1] = level[-2] * 1.012
+    return {"CPIAUCSL": _vintages(level), "CPILFESL": _vintages(level * 1.1)}
+
+
+@pytest.fixture
+def fresh_memo(monkeypatch):
+    monkeypatch.setattr(live, "_found", {})
+    monkeypatch.setattr(live, "_tried", {})
+    monkeypatch.setattr(live, "_inflight", {})
+
+    def no_cache(series):
+        raise RuntimeError("no cached copy")
+
+    monkeypatch.setattr(live, "_cached_rows", no_cache)
+
+
+def test_build_intel_async_never_waits_for_fred(walk, monkeypatch, fresh_memo):
+    import asyncio
+    import time as _time
+    series = _vintage_series()
+
+    def slow_download(sid):
+        _time.sleep(1.5)
+        return series[sid]
+
+    monkeypatch.setattr(live.fred, "download", slow_download)
+    now = T + 20 * 60
+    ctx = ctx_from_minutes(walk, now)
+
+    async def run():
+        t0 = _time.perf_counter()
+        first = await live.build_intel_async(ctx, now, fake_art(), timeout=1.0, events=[CPI_EV])
+        took = _time.perf_counter() - t0
+        assert first.surprise_z is None and "Actual not published yet" in first.notes
+        await asyncio.gather(*live._inflight.values())  # the background lookup finishes
+        again = await live.build_intel_async(ctx, now, fake_art(), timeout=1.0, events=[CPI_EV])
+        return took, again
+
+    took, again = asyncio.run(run())
+    assert took < 1.0
+    want = expectations(first_releases(series["CPIAUCSL"], "pct_mom"), 1)[-1].z
+    assert again.surprise_z == pytest.approx(want)
+
+
+def test_build_intel_async_one_background_fetch_per_release(walk, monkeypatch, fresh_memo):
+    import asyncio
+    calls = []
+
+    def failing(sid):
+        calls.append(sid)
+        raise RuntimeError("FRED down")
+
+    monkeypatch.setattr(live.fred, "download", failing)
+    now = T + 20 * 60
+    ctx = ctx_from_minutes(walk, now)
+
+    async def run():
+        for _ in range(3):
+            await live.build_intel_async(ctx, now, fake_art(), events=[CPI_EV])
+            await asyncio.gather(*live._inflight.values(), return_exceptions=True)
+
+    asyncio.run(run())
+    assert calls == ["CPIAUCSL"]  # throttled: one try per 10 minutes
+
+
+def test_build_intel_async_times_out(monkeypatch):
+    import asyncio
+    import time as _time
+
+    def stuck(*a, **k):
+        _time.sleep(1.0)
+
+    monkeypatch.setattr(live, "build_intel", stuck)
+    ctx = MarketContext(generated_at=datetime.fromtimestamp(T, timezone.utc), analysis_tf="15m")
+    async def run():
+        t0 = _time.perf_counter()
+        it = await live.build_intel_async(ctx, T, fake_art(), timeout=0.2, events=[CPI_EV])
+        return it, _time.perf_counter() - t0
+
+    it, took = asyncio.run(run())  # (asyncio.run itself still waits for the stuck worker thread on exit)
+    assert took < 0.6
+    assert it.phase == "none" and any("took too long" in n for n in it.notes)
+
+
+def test_claims_cache_used_for_old_dates_and_gaps(monkeypatch):
+    days = [f"2020-{m:02d}-{d:02d}" for m in range(1, 13) for d in (2, 9, 16, 23)] + ["2025-09-25", "2025-11-20"]
+    monkeypatch.setattr(live, "_claims_days", lambda: days)
+    t = int(datetime(2020, 3, 11, 8, 30, tzinfo=NY).timestamp())  # long before the cache's end
+    assert live._last_claims_before(t) == int(datetime(2020, 3, 9, 8, 30, tzinfo=NY).timestamp())
+    gap = int(datetime(2025, 10, 24, 8, 30, tzinfo=NY).timestamp())  # no claims during the shutdown
+    assert live._last_claims_before(gap) == int(datetime(2025, 9, 25, 8, 30, tzinfo=NY).timestamp())

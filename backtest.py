@@ -191,6 +191,12 @@ BASE_WEIGHTS = {a.name: (a.weight if a.votes else 0) for a in BUILT_IN}
 _AGENT_CACHE: dict = {}        # health check: agent results per step, reused by every variant (only the Chief re-runs)
 
 
+HTF_SIDE: dict = {"side": None}      # the Wyckoff + Elliott side at the current step (for the f_htf filters)
+
+
+from core.dataset import htf_side  # noqa: E402 - Wyckoff + Elliott side: BUY, SELL or RANGE
+
+
 async def analyse(ctx: MarketContext, weights: dict | None = None):
     key = (SETTINGS.get("cache_ns"), ctx.generated_at.timestamp())
     if SETTINGS.get("cache") and key in _AGENT_CACHE:
@@ -204,6 +210,7 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
         check = await run_agent(DATA_CHECK, ctx)
         if SETTINGS.get("cache"):
             _AGENT_CACHE[key] = (results, check)
+    HTF_SIDE["side"] = htf_side(results)
     w = dict(weights or BASE_WEIGHTS)
     drop = SETTINGS.get("drop") or []
     off = set([drop] if isinstance(drop, str) else drop)          # health check: these votes are left out
@@ -214,6 +221,10 @@ async def analyse(ctx: MarketContext, weights: dict | None = None):
         w[name] = 0
     rep = chief(ctx, results, w, check)
     rep.today = today_view(rep)
+    if SETTINGS.get("record"):          # tools/build_dataset.py: keep every replayed step for training
+        from core import dataset
+        dataset.record_step(SETTINGS["record"]["src"], SETTINGS["record"]["run"], ctx.generated_at.timestamp(), ctx.futures_last,
+                            results, rep, buffered=True)
     return results, rep
 
 
@@ -252,7 +263,8 @@ SETTINGS = {"target_rr": None, "partial": True, "account": 25000.0, "lot": 0.1, 
             "live_rules": True,      # the live Discipline coach's other rules: 2 losses a day, 60-min cool-down, no chasing
             "stop_slip": 0.0,        # extra dollars lost when a stop / breakeven order fills (cost stress test)
             "f_session": False,      # quality filter: only 07:00 London to 12:00 New York (the busiest hours)
-            "f_trend": False,        # quality filter: only when the Daily and 4H both point the trade's way
+            "f_trend": False, "f_htf": False, "f_htf_strict": False,
+            "runner_rr": None, "trail_r": None, "min_conf": None,        # quality filter: only when the Daily and 4H both point the trade's way
             "f_hunt": False,         # quality filter: only right after a stop hunt against the trade's side
             "drop": None, "cache": False}   # health check internals
 
@@ -264,6 +276,11 @@ def exit_on_bar(tr: dict, c: Candle, spread: float, sec: int = 900) -> bool:
     half = tr.get("half_r")
     stop = tr["entry"] if half is not None else tr["stop"]
     stop_name = "breakeven" if half is not None else "stop"
+    trail = SETTINGS.get("trail_r")
+    if half is not None and trail and tr.get("best") is not None:     # runner: stop follows the best FINISHED price
+        tstop = tr["best"] - s * trail * tr["risk"]
+        if (tstop - stop) * s > 0:
+            stop, stop_name = round(tstop, 2), "trailing stop"
     px = why = None
     if (c.o - stop) * s <= 0:
         px, why = c.o, f"{stop_name} (gap)"
@@ -275,13 +292,19 @@ def exit_on_bar(tr: dict, c: Candle, spread: float, sec: int = 900) -> bool:
         if half is None and be is not None and ((c.h >= be) if s > 0 else (c.l <= be)):
             hp = c.o if (c.o - be) * s > 0 else be         # opened beyond 1R: take half at the open
             half = tr["half_r"] = round((hp - s * spread - tr["entry"]) * s / tr["risk"], 2)
+            run_rr = SETTINGS.get("runner_rr")
+            if run_rr:                                     # the runner aims further than the plan's target
+                t1 = tr["t1"] = round(tr["entry"] + s * max(run_rr * tr["risk"], abs(t1 - tr["entry"])), 2)
         if (c.h >= t1) if s > 0 else (c.l <= t1):
             px, why = t1, "target"
         elif c.t + sec >= tr["entry_t"] + TRADE_EXPIRY_S:
             px, why = c.c, "expired (24h)"
     if px is None:
+        if half is not None:                               # remember the best price so far for the trailing stop
+            ext = c.h if s > 0 else c.l
+            tr["best"] = ext if tr.get("best") is None else (max if s > 0 else min)(tr["best"], ext)
         return False
-    slip = SETTINGS.get("stop_slip", 0.0) if why.startswith(("stop", "breakeven")) else 0.0
+    slip = SETTINGS.get("stop_slip", 0.0) if why.startswith(("stop", "breakeven", "trailing")) else 0.0
     fill = px - s * (spread + slip)
     rest = (fill - tr["entry"]) * s / tr["risk"]
     r = 0.5 * half + 0.5 * rest if half is not None else rest
@@ -351,6 +374,13 @@ def quality_block(T: int, rep) -> str | None:
         return "f_session"
     if SETTINGS.get("f_trend") and not all(side in t.bias for t in rep.timeframes if t.tf in ("Daily", "4H")):
         return "f_trend"
+    if SETTINGS.get("min_conf") and rep.confidence < SETTINGS["min_conf"]:
+        return "min_conf"             # weak agreement: the Chief's confidence is under the threshold
+    hs = HTF_SIDE["side"]
+    if SETTINGS.get("f_htf") and hs in ("BUY", "SELL") and side != hs:
+        return "f_htf"                # against the Wyckoff + Elliott side
+    if SETTINGS.get("f_htf_strict") and side != hs:
+        return "f_htf"                # strict: also no trades when they call a range
     h = rep.recent_hunt
     if SETTINGS.get("f_hunt") and not (h and h.side == ("sell" if side == "BUY" else "buy")):
         return "f_hunt"
@@ -519,7 +549,7 @@ def summarize(trades: list[dict]) -> dict:
 
 
 AGENT_NAMES = {"wyckoff": "Wyckoff", "elliott": "Elliott", "smc": "Smart money", "price_action": "Price action",
-               "trend": "Trend analyst", "sentiment": "Market psychology", "stophunt": "Stop-hunt", "macro": "Session and macro", "skeptic": "Skeptic", "chief": "Chief (weighted timeframes)"}
+               "trend": "Trend analyst", "sentiment": "Market psychology", "stophunt": "Stop-hunt", "ict": "ICT", "macro": "Session and macro", "skeptic": "Skeptic", "chief": "Chief (weighted timeframes)"}
 
 
 def when(t: int) -> str:

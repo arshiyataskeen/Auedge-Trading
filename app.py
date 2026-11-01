@@ -12,8 +12,8 @@ from agents import DATA_CHECK, PSYCH, all_agents
 from agents.base import run_agent
 from agents.chief import chief, today_view
 from agents.psychology import apply_to_plan
-from core import ai_summary, auth, track, votes, weights as aw
-from core.data import build_context
+from core import ai_summary, auth, dataset, track, trade_review, votes, webapp, weights as aw
+from core.data import build_context, live_spot
 from core.env import load_env
 
 load_env()
@@ -37,15 +37,32 @@ async def _update(use_ai: bool) -> None:
     _last["at"] = time.time()
 
 
+RETRY_S = 60                        # a run with no live price (no internet, e.g. just after the PC wakes) is retried
+
+
+def _data_failed() -> bool:
+    rep = _last.get("report")
+    return rep is not None and rep.get("spot") is None
+
+
 async def _scheduler() -> None:
-    """Runs the analysis on every 15m candle close, even when no page is open (keeps the track record going)."""
+    """Runs the analysis on every 15m candle close, even when no page is open (keeps the track record going).
+    Checks the wall clock every 15 s (one long sleep can fire hours late after the PC sleeps), and retries a run
+    that had no live data after RETRY_S instead of waiting for the next candle."""
     while True:
-        await asyncio.sleep(next_run_in())
+        due = time.time() + next_run_in()
+        while time.time() < due:
+            if _data_failed() and time.time() - _last["at"] >= RETRY_S:
+                break
+            if _last["at"] and time.time() - _last["at"] > ANALYSIS_EVERY_S + 60:   # missed a slot (PC was asleep)
+                break
+            await asyncio.sleep(min(15, max(0.5, due - time.time())))
         try:
             async with _lock:
                 await _update(time.time() - _last["viewed"] < VIEWED_WINDOW_S)
         except Exception as e:  # noqa: BLE001 - one failed run must not stop the schedule
             print(f"[scheduler] {type(e).__name__}: {e}")
+            await asyncio.sleep(RETRY_S)
 
 
 HISTORY_EVERY_S = 6 * 3600         # save new candles to the backtest history (the free feed keeps only ~1 month of 15m)
@@ -115,14 +132,20 @@ app.get("/logout", include_in_schema=False)(auth.logout)
 
 
 
+NO_CACHE = {"Cache-Control": "no-cache"}   # the browser always checks for a newer version (a cheap 304 when unchanged)
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers=NO_CACHE)
 
 
 APP_FILES = {"icon.svg": "image/svg+xml", "apple-touch-icon.png": "image/png", "icon-192.png": "image/png",
              "icon-512.png": "image/png", "manifest.webmanifest": "application/manifest+json",
              "journal.js": "text/javascript"}
+
+
+app.include_router(webapp.router)   # React app at /app/* (before the catch-all below)
 
 
 @app.get("/{name}")
@@ -131,7 +154,7 @@ def app_file(name: str):
     if name not in APP_FILES:
         from fastapi import HTTPException
         raise HTTPException(status_code=404)
-    return FileResponse(STATIC / name, media_type=APP_FILES[name])
+    return FileResponse(STATIC / name, media_type=APP_FILES[name], headers=NO_CACHE if name.endswith((".js", ".webmanifest")) else None)
 
 
 _weights: dict = {"week": None, "mult": {}}
@@ -174,6 +197,26 @@ async def run_analysis(use_ai: bool = True) -> dict:
         track.sync_journal()         # finished demo trades go into the journal ("AuEdge Demo")
     except Exception as e:  # noqa: BLE001 - the track record must never break the analysis
         print(f"[track] {e}")
+    try:                             # training dataset: this step with every agent's features, labels for older steps
+        if ctx.futures_last is not None:
+            dataset.record_step("live", None, ctx.generated_at.timestamp(), ctx.futures_last, results, report)
+            fut15 = ctx.struct("15m")
+            if fut15:
+                await asyncio.to_thread(dataset.label, trade_review._candles(
+                    [{"t": c.t, "h": c.h, "l": c.l, "c": c.c} for c in fut15.candles]))
+    except Exception as e:  # noqa: BLE001 - the dataset must never break the analysis
+        print(f"[dataset] {e}")
+    try:                             # trade reviewer: who suggested each finished trade, why it won or lost
+        fut = ctx.struct("15m")
+        live = [{"t": c.t, "h": c.h, "l": c.l, "c": c.c} for c in fut.candles] if fut else None
+        tr_res = await asyncio.to_thread(trade_review.run, live)
+        last_rv = _review_latest()
+        if (votes.state()["auto_apply"] and trade_review.due_early_review(tr_res, votes.off())
+                and time.time() - (last_rv["made_at"] if last_rv else 0) > trade_review.EARLY_REVIEW_AFTER_S
+                and review_run(False).get("ok")):
+            trade_review.mark_early_review()   # the board backtests the weak vote; it changes only if proven better
+    except Exception as e:  # noqa: BLE001 - the reviewer must never break the analysis
+        print(f"[trade review] {e}")
     psych = await run_agent(PSYCH, ctx)
     apply_to_plan(report, psych)     # discipline rules can cancel a new trade before it is recorded
     report.today = today_view(report)
@@ -214,10 +257,13 @@ async def analysis(refresh: bool = Query(False)):
     _last["viewed"] = time.time()
     async with _lock:
         last_slot = time.time() + next_run_in() - ANALYSIS_EVERY_S     # most recent scheduled run time
-        if refresh or _last["report"] is None or _last["at"] < last_slot - 5:
+        stale = _data_failed() and time.time() - _last["at"] >= RETRY_S
+        if refresh or stale or _last["report"] is None or _last["at"] < last_slot - 5:
             await _update(True)
         rep = dict(_last["report"])
         rep["next_in_s"] = max(0, int(next_run_in()))
+        if _data_failed():                       # no live data: the page asks again after the retry
+            rep["next_in_s"] = min(rep["next_in_s"], max(5, int(RETRY_S - (time.time() - _last["at"])) + 5))
         return rep
 
 
@@ -411,6 +457,15 @@ def review_info():
             "next_due": (last["made_at"] if last else time.time()) + REVIEW_EVERY_S}
 
 
+@app.get("/api/trade_review")
+def trade_review_info():
+    """The trade reviewer's latest study: per-trade reviews, agent scorecard, what wins, what loses."""
+    from agents import BUILT_IN
+    d = trade_review.latest() or trade_review.run()
+    return {**d, "labels": {a.name: a.label for a in BUILT_IN}, "voting_off": votes.off(),
+            "reason_text": trade_review.REASON_TEXT, "win_text": trade_review.WIN_TEXT}
+
+
 @app.post("/api/review/undo")
 def review_undo():
     e = votes.undo()
@@ -559,11 +614,34 @@ def news_tab():
             "events": sorted(rows + official, key=lambda x: x["t"])}
 
 
+def _backup_candles(start: int, end: int, sec: int = 900) -> dict:
+    """15m spot candles from the trading_research backup's 1-minute data (data/news_intel/xau_1m.npz), for replaying
+    backtests that ran on that backup (2020 onwards, spot prices)."""
+    import numpy as np
+    f = Path(__file__).parent / "data" / "news_intel" / "xau_1m.npz"
+    if not f.exists():
+        return {"error": "The backup's 1-minute candles are not saved yet (data/news_intel/xau_1m.npz)."}
+    with np.load(f) as z:
+        t = z["t"]
+        a, b = np.searchsorted(t, start), np.searchsorted(t, end, side="right")
+        t, o, h, l, c = t[a:b], z["o"][a:b], z["h"][a:b], z["l"][a:b], z["c"][a:b]
+    if not len(t):
+        return {"error": "No backup candles for that period."}
+    bucket = t // sec * sec
+    keys, first = np.unique(bucket, return_index=True)
+    last = np.r_[first[1:], len(t)] - 1
+    rows = [{"t": int(k), "o": float(o[i]), "h": float(h[i:j + 1].max()), "l": float(l[i:j + 1].min()), "c": float(c[j])}
+            for k, i, j in zip(keys, first, last)]
+    return {"tf": "15m", "sec": sec, "candles": rows}
+
+
 @app.get("/api/backtest/candles")
-def backtest_candles(start: int, end: int):
+def backtest_candles(start: int, end: int, src: str = ""):
     """Candles around a backtest trade, for the replay chart: 15m when the saved 15m history covers the window,
-    otherwise 1H (the same candles the backtest used)."""
+    otherwise 1H (the same candles the backtest used). src=backup: spot candles from the trading_research backup."""
     import json
+    if src == "backup" and 0 < end - start <= 10 * 86400:
+        return _backup_candles(start, end)
     cache = Path(__file__).parent / "data" / "backtest_cache"
     if end <= start or end - start > 10 * 86400:
         return {"error": "Invalid window."}
@@ -575,13 +653,22 @@ def backtest_candles(start: int, end: int):
         except Exception:  # noqa: BLE001 - no cache
             pts = []
         live_pts = raw.get(name, {}).get("points", []) if isinstance(raw.get(name), dict) else []
+        if not live_pts and end > time.time() - 6 * 3600:      # e.g. just after a restart: fetch the newest candles now
+            try:
+                import httpx
+                iv, rg = ("15m", "5d") if sec == 900 else ("1h", "1mo")
+                r = httpx.get(f"{live.API}/chart?symbol=xau&interval={iv}&range={rg}", timeout=12)
+                live_pts = r.json().get("points", []) if r.status_code == 200 else []
+            except Exception:  # noqa: BLE001 - fall back to the saved history
+                live_pts = []
         if live_pts:                                   # add the newest candles from the live dashboard (demo trades)
             merged = {p["t"]: p for p in pts}
             merged.update({p["t"]: p for p in live_pts})
             pts = [merged[t] for t in sorted(merged)]
         if pts and pts[0]["t"] <= start:
             rows = [{"t": p["t"], "o": p["o"], "h": p["h"], "l": p["l"], "c": p["c"]} for p in pts
-                    if start <= p["t"] <= end and None not in (p.get("o"), p.get("h"), p.get("l"), p.get("c"))]
+                    if start <= p["t"] <= end and p["t"] % sec == 0        # whole candles only (no half-built snapshots)
+                    and None not in (p.get("o"), p.get("h"), p.get("l"), p.get("c"))]
             return {"tf": "15m" if sec == 900 else "1h", "sec": sec, "candles": rows}
     return {"error": "No saved candles for that period."}
 
@@ -593,28 +680,21 @@ def _spot_now() -> float | None:
 
 
 @app.get("/api/demo")
-def demo():
-    """Demo account: AuEdge's own demo positions (no broker), with live profit/loss on the open one."""
-    return {**track.demo_state(_spot_now()), "journal_account": track.demo_journal_id()}
+async def demo():
+    """Demo account: AuEdge's own demo positions (no broker), with live profit/loss on the open one.
+    P&L uses the live spot price (not the last 15-min analysis); falls back to the analysis price."""
+    price = await live_spot() or _spot_now()
+    return {**track.demo_state(price), "journal_account": track.demo_journal_id()}
 
 
 @app.get("/api/calls")
 def calls(days: int = 7):
     """Trade calls of the last `days` days for the chart: live demo trades plus the newest saved backtest's trades.
-    Prices are in gold-futures terms (the chart's Futures candles); demo trades are shifted by their saved gap."""
+    Backtest trades are in gold-futures prices; demo trades in spot prices with their `gap` (futures minus spot)."""
     import json
     since = time.time() - max(1, min(days, 30)) * 86400
     out = []
-    for t in track.demo_state(_spot_now())["closed"] + track.demo_state(_spot_now())["open"]:
-        if t["ts"] < since:
-            continue
-        g = t["gap"] or 0
-        out.append({"source": "demo", "side": t["side"], "kind": "now", "decided_t": t["ts"], "entry_t": t["ts"],
-                    "exit_t": t["closed_ts"], "entry": round(t["entry"] + g, 2), "stop": round(t["stop"] + g, 2),
-                    "t1": round(t["t1"] + g, 2), "exit": round(t["exit_price"] + g, 2) if t["exit_price"] else None,
-                    "r": t["result_r"] if t["result_r"] is not None else 0.0, "usd": t.get("usd") if t["status"] != "open"
-                    else t.get("unrealised"), "why": t.get("why") or ("open" if t["status"] == "open" else t["status"]),
-                    "open": t["status"] == "open"})
+    out += [t for t in _demo_as_calls() if t["entry_t"] >= since]       # demo trades in spot prices (+ their gap)
     runs = sorted(BT_DIR.glob("bt_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     if DEMO_MONTH.exists() and (BT_DIR / f"{DEMO_MONTH.read_text().strip()}.json").exists():
         runs.insert(0, BT_DIR / f"{DEMO_MONTH.read_text().strip()}.json")     # prefer the Demo tab's month run
@@ -672,14 +752,15 @@ def demo_month():
 
 # ---------------- Calendar: everything AuEdge did on a given day (live data first, else the simulated month)
 def _demo_as_calls() -> list[dict]:
-    """Live demo trades in the replay format (futures prices = spot + the gap saved at entry)."""
+    """Live demo trades in the replay format, in SPOT prices like the Demo tab. `gap` (futures minus spot at entry) lets
+    the replay charts shift their futures candles to spot."""
     st = track.demo_state(_spot_now())
     out = []
     for t in st["closed"] + st["open"]:
         g = t["gap"] or 0
-        out.append({"source": "demo", "side": t["side"], "kind": "now", "decided_t": t["ts"], "entry_t": t["ts"],
-                    "exit_t": t["closed_ts"], "entry": round(t["entry"] + g, 2), "stop": round(t["stop"] + g, 2),
-                    "t1": round(t["t1"] + g, 2), "exit": round(t["exit_price"] + g, 2) if t["exit_price"] else None,
+        out.append({"source": "demo", "side": t["side"], "kind": "now", "decided_t": int(t["ts"]), "entry_t": int(t["ts"]),
+                    "exit_t": int(t["closed_ts"]) if t["closed_ts"] else None, "entry": t["entry"], "stop": t["stop"],
+                    "t1": t["t1"], "exit": t["exit_price"], "gap": g, "half": bool(t.get("half")),
                     "r": t["result_r"] if t["result_r"] is not None else 0.0,
                     "usd": t.get("usd") if t["status"] != "open" else t.get("unrealised"),
                     "why": t.get("why") or t["status"], "open": t["status"] == "open"})

@@ -15,7 +15,7 @@ import re
 import sqlite3
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -91,7 +91,9 @@ def phase_rules(rules: dict, idx: int) -> dict:
 
 def day_key(ts: float, reset: str) -> str:
     tz, hour = RESETS.get(reset, RESETS["utc"])
-    d = datetime.fromtimestamp(ts - hour * 3600, ZoneInfo(tz))          # a 17:00 reset counts 17:00-17:00 as one day
+    d = datetime.fromtimestamp(ts, ZoneInfo(tz))
+    if hour and d.hour >= hour:          # a 17:00 NY reset counts 17:00 the day before -> 17:00 as one day, named by the day it ends
+        d += timedelta(days=1)
     return d.strftime("%Y-%m-%d")
 
 

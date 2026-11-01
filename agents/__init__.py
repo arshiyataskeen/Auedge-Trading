@@ -1,4 +1,4 @@
-"""Agent registry: the 6 analysis agents, plus any adapters found in agents/external/.
+"""Agent registry: the analysis agents (incl. ICT: sweep, CHoCH, FVG), plus any adapters found in agents/external/.
 
 Stage 1 agents run in parallel; stage 2 (the Skeptic) runs after them and sees their results.
 The risk guard is not a voting agent: it is the Chief's data check (stale price, market closed).
@@ -8,6 +8,7 @@ import pkgutil
 
 from .base import BaseAgent
 from .elliott import ElliottAgent
+from .ict import ICTAgent
 from .market_psych import MarketPsychAgent
 from .price_action_td import PriceActionTDAgent
 from .psychology import PsychologyAgent
@@ -21,7 +22,7 @@ from .wyckoff import WyckoffAgent
 
 BUILT_IN: list[BaseAgent] = [
     WyckoffAgent(), ElliottAgent(), SmartMoneyAgent(), PriceActionTDAgent(), TrendAnalystAgent(), SessionMacroAgent(), MarketPsychAgent(),
-    StopHuntAgent(),
+    StopHuntAgent(), ICTAgent(),
     SkepticAgent(),
 ]
 DATA_CHECK = RiskGuardAgent()

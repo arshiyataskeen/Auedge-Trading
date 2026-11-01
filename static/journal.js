@@ -136,7 +136,7 @@ function demoCardHtml() {
     <div class="jm"><div class="jmh"><span>Today · this week</span><b><span class="${jCls(dm.today)}">${jUsd(dm.today)}</span> · <span class="${jCls(dm.week)}">${jUsd(dm.week)}</span></b></div></div>
     <div class="meta afoot">${dm.trades} closed trades${dm.win_rate != null ? ` · ${dm.win_rate}% won` : ""} · last ${last ? jDay(last.closed_ts) : "none yet"} · tap for its journal</div>`;
 }
-function openDemoTab() { J.acc = null; setView("trade"); document.querySelector('#tabs [data-tab="demo"]')?.click(); }
+function openDemoTab() { J.acc = null; setView("home"); showHomePage("demo"); }
 function demoPill() {
   const el = $("demoPill"), dm = J.demo;
   if (!dm) { el.hidden = true; return; }

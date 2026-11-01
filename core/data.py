@@ -65,6 +65,37 @@ async def _fetch_raw() -> dict:
     return raw
 
 
+_spot_cache: dict = {"at": 0.0, "price": None}
+
+
+async def live_spot() -> float | None:
+    """Latest spot price for live demo P&L (cached 10 s). None if XAUS is down or the quote is stale.
+    With a price less than 2 minutes old in the cache it answers at once and refreshes in the background."""
+    age = time.time() - _spot_cache["at"]
+    if age < 10:
+        return _spot_cache["price"]
+    if age < 120 and _spot_cache["price"] is not None:
+        if not _spot_cache.get("busy"):
+            _spot_cache["busy"] = True
+            asyncio.create_task(_refresh_spot())
+        return _spot_cache["price"]
+    return await _refresh_spot()
+
+
+async def _refresh_spot() -> float | None:
+    price = None
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            d = await _get(client, "/spot?compact=1")
+        p = d.get("spot_usd_oz") or (d.get("xau") or {}).get("price")
+        age = time.time() - datetime.fromisoformat(d["updated_at"].replace("Z", "+00:00")).timestamp()
+        price = float(p) if p and age <= STALE_AFTER_S else None
+    except Exception:
+        pass
+    _spot_cache.update(at=time.time(), price=price, busy=False)
+    return price
+
+
 def aggregate(points: list[dict], sec: int) -> list[Candle]:
     """Group samples ({t,p}) or bars ({t,o,h,l,c,v}) into candles of `sec` seconds."""
     out: list[Candle] = []

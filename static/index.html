@@ -32,6 +32,14 @@
     --chart-text: #131722; --chart-grid: rgba(224,227,235,.9);
   }
   :root[data-theme="light"] .warn { color: #e65100; }
+  /* manual refresh: neural orb in the centre while every agent runs again */
+  .orbwrap { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 10px; background: color-mix(in srgb, var(--app) 55%, transparent); backdrop-filter: blur(6px);
+             opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+  .orbwrap.on { opacity: 1; pointer-events: auto; }
+  .orbwrap canvas { width: 280px; height: 280px; }
+  .orbwrap .orbt { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: .2px; min-height: 20px; text-align: center; }
+  .orbwrap .orbs { font-size: 12px; color: var(--muted); min-height: 16px; text-align: center; transition: opacity .25s; }
   * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
   html, body { height: 100%; overflow: hidden; }
   body { margin: 0; background: var(--app); color: var(--text);
@@ -304,6 +312,16 @@
   .eqaxis { display: flex; justify-content: space-between; margin-top: 4px; }
   .btlines { margin: 10px 0 6px 18px; padding: 0; font-size: 12.5px; }
   .btlines li { margin: 3px 0; }
+  .btyears { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+  .btyear { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; height: auto; background: var(--panel2); text-align: left; }
+  .btyear b { font-size: 14px; } .btyear .up { color: var(--up); font-weight: 700; } .btyear .dn { color: var(--down); font-weight: 700; }
+  .btyear.on { box-shadow: 0 0 0 2px var(--accent) inset; }
+  .btmonths td { padding-top: 7px; padding-bottom: 7px; } .btmonths tr.sel td { background: var(--rowhover2); }
+  .btmonths .dbar { display: block; } .btmonths .up { color: var(--up); } .btmonths .dn { color: var(--down); } .btmonths tr.bttotal td { border-top: 2px solid var(--line2); }
+  .calhead span.up { color: var(--up); font-weight: 700; } .calhead span.dn { color: var(--down); font-weight: 700; }
+  #btPick { max-width: 360px; } .jday.tclick:hover { background: var(--rowhover); }
+  .btmore > summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 2px 0; }
+  .btmore[open] > summary { margin-bottom: 8px; } .btmore .card { border: 0; box-shadow: none; padding-left: 0; padding-right: 0; }
   .btruns tr { cursor: pointer; }
   .callsbtn { display: inline-flex; align-items: center; gap: 6px; height: 40px; margin: 0 2px; background: var(--panel2); border-radius: 6px; }
   .callsbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -320,12 +338,22 @@
   body.view-home .homeview { display: block; } body.view-home main.layout { display: none; }
   body.view-home #srcGroup, body.view-home #tfGroup, body.view-home #cdPill, body.view-home #callsBtn, body.view-home #gap,
   body.view-home .ctrl .chk, body.view-home .ctrl .sep, body.view-home #bigBtn, body.view-home #refreshBtn, body.view-home .ctrl .pill { display: none; }
-  .hwrap { max-width: 1280px; margin: 0 auto; padding: 18px 16px 40px; }
+  .hwrap { max-width: none; margin: 0; padding: 18px 24px 40px; }
+  .homenav { position: sticky; top: 0; z-index: 5; display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: var(--bg);
+             border-bottom: 1px solid var(--line); }
+  .homenav button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; white-space: nowrap; font-weight: 600;
+                    background: transparent; color: var(--muted); position: relative; }
+  .homenav button.on { color: var(--strong); background: var(--acc-bg); box-shadow: inset 0 -2px 0 var(--accent); }
+  .homenav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .homenav .cnt:not(:empty) { font-size: 10.5px; background: var(--accent); color: #fff; border-radius: 8px; padding: 0 5px; }
+  .homenav .dotrun { width: 7px; height: 7px; border-radius: 50%; display: none; } .homenav .dotrun.on { display: inline-block; background: var(--accent); }
+  .hpages { max-width: none; margin: 0; padding: 14px 24px 40px; }
+  .hpage { display: flex; flex-direction: column; } .hpage[hidden] { display: none; }
   .hhead { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .hhead h2 { margin: 2px 0; font-size: 22px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .hbtns { display: flex; gap: 6px; flex-wrap: wrap; } .hbtns button:not(.primary), .hside > button:not(.linkbtn), .hcall button:not(.primary) { background: var(--panel2); }
   .hsum { margin-bottom: 14px; }
-  .hgrid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+  .hgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 28%); gap: 14px; align-items: start; }
   .hgrid > aside .card, .hgrid > div > .card, .hside .card { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; }
   .acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .acard { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; transition: border-color .12s, transform .12s; }
@@ -383,7 +411,12 @@
   .mtpill .det { display: none; }
   body.src-tv .ctrl .chk { display: none; }
   .iconbtn { width: 34px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-  .iconbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .iconbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #refreshBtn { padding: 0; }      /* .primary adds side padding, which squeezed the icon to 10 px */
+  #refreshBtn svg { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 1.9; transition: transform .35s ease; } #refreshBtn:hover:not(:disabled) svg { transform: rotate(-90deg); }
+  #refreshBtn:disabled { opacity: 1; cursor: progress; }
+  @keyframes spinRefresh { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: no-preference) { #refreshBtn:disabled svg { animation: spinRefresh .9s linear infinite; } }
   #bigBtn.on { color: var(--accent); }
   .ctrl { flex-wrap: nowrap; gap: 4px; }
   @media (max-width: 1450px) { .cdpill .cdlbl, header.top #chg { display: none; } .viewseg button { padding: 5px 8px; } }
@@ -641,7 +674,7 @@
         <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
         <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></button>
       <button id="refreshBtn" class="primary iconbtn" title="Run all agents again now" aria-label="Refresh the analysis">
-        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
+        <svg viewBox="0 0 24 24"><path d="M19.5 10.5A7.8 7.8 0 0 0 5 8.2"/><path d="M4.6 4v4.4H9"/><path d="M4.5 13.5A7.8 7.8 0 0 0 19 15.8"/><path d="M19.4 20v-4.4H15"/></svg></button>
       <button id="bigBtn" class="hide-sm iconbtn" title="Bigger chart: hide the analysis panel" aria-label="Bigger chart">
         <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
@@ -672,7 +705,7 @@
       </div>
       <div class="tabbody">
         <div class="tab" id="tab-plan"></div>
-        <div class="tab" id="tab-agents" hidden><div id="reviewCard" class="card"></div><div id="agentCards" class="agents-grid"></div></div>
+        <div class="tab" id="tab-agents" hidden><div id="reviewCard" class="card"></div><div id="tradeReviewCard" class="card"></div><div id="agentCards" class="agents-grid"></div></div>
         <div class="tab" id="tab-levels" hidden></div>
         <div class="tab" id="tab-track" hidden></div>
         <div class="tab" id="tab-backtest" hidden></div>
@@ -690,25 +723,26 @@
         <svg viewBox="0 0 24 24"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M16 5h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2"/><path d="M9 12l2 2 4-4"/></svg><span class="lbl">Plan</span></button>
       <button data-tab="levels" role="tab" title="Levels: every price level from every agent, sorted">
         <svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".6"/></svg><span class="lbl">Levels</span><span class="cnt" id="lvCount"></span></button>
-      <button data-tab="news" role="tab" title="News: US events that move gold (ForexFactory + official dates)">
-        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13.5h3M7.5 16.5h6"/></svg><span class="lbl">News</span><span class="cnt" id="nwCount"></span></button>
-      <button class="railmorebtn" data-more="1" aria-haspopup="true" aria-expanded="false" title="Analysis: agents, record, calendar, backtest, demo">
+      <button class="railmorebtn" data-more="1" aria-haspopup="true" aria-expanded="false" title="Analysis: agents and track record">
         <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span class="lbl">Analysis</span><span class="dotrun" id="moreDot"></span></button>
       <div class="railmore" id="railMore" hidden role="menu">
       <button data-tab="agents" role="tab" title="Agents: what each analysis agent says">
         <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.3.1 3.9 1.5 4.5 4.4"/></svg><span class="lbl">Agents</span><span class="cnt" id="agCount"></span></button>
       <button data-tab="track" role="tab" title="Track record: how past calls and trades turned out">
         <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="lbl">Record</span></button>
-      <button data-tab="calendar" role="tab" title="Calendar: pick a date to see that day's calls, agents, levels, demo trades and replay">
-        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg><span class="lbl">Calendar</span></button>
-      <button data-tab="backtest" role="tab" title="Backtest: test the rules on a past period you choose">
-        <svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/></svg><span class="lbl">Backtest</span><span class="dotrun" id="btDot"></span></button>
-      <button data-tab="demo" role="tab" title="Demo account: AuEdge's own automatic demo trades (no real money)">
-        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14.5h2"/><path d="M7 6V4.5h10V6"/></svg><span class="lbl">Demo</span><span class="cnt" id="dmCount"></span></button>
       </div>
     </nav>
   </main>
-  <main id="homeView" class="homeview" aria-label="Accounts and journal"></main>
+  <main id="homeShell" class="homeview" aria-label="Home">
+    <nav class="homenav" id="homeNav" aria-label="Home pages">
+      <button data-hp="accounts" class="on"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>My accounts</button>
+      <button data-hp="backtest"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/></svg>Backtest<span class="dotrun" id="btDot"></span></button>
+      <button data-hp="news"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13.5h3M7.5 16.5h6"/></svg>News<span class="cnt" id="nwCount"></span></button>
+      <button data-hp="demo"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14.5h2"/><path d="M7 6V4.5h10V6"/></svg>Demo<span class="cnt" id="dmCount"></span></button>
+    </nav>
+    <div id="homeView"></div>
+    <section id="homePage" class="hpages" hidden></section>
+  </main>
 </div>
 
 <div id="modal" class="modal" hidden>
@@ -827,6 +861,7 @@ async function pollSpot() {
 
     if (state.src === "spot" && state.bars.length) addSpotTick(price, updatedSec);
     updateGap();
+    liveDemoTick(price, updatedSec);
   } catch (e) {
     $("fresh").className = "badge down";
     $("fresh").textContent = e.message === "NO_PRICE" ? "NO PRICE AVAILABLE" : "CONNECTION PROBLEM";
@@ -991,7 +1026,7 @@ function levelTable(levels) {
   return `<table class="levels">${levels.map(l =>
     `<tr><td>${esc(l.kind)}${l.note ? ` <span class="meta">· ${esc(l.note)}</span>` : ""}</td><td class="p">${fmt(l.price)}</td></tr>`).join("")}</table>`;
 }
-const LABELS = { wyckoff: "Wyckoff", elliott: "Elliott", smc: "Smart money", price_action: "Price action", trend: "Trend", macro: "Macro", skeptic: "Skeptic", sentiment: "Psychology", stophunt: "Stop-hunt", psychology: "Discipline" };
+const LABELS = { wyckoff: "Wyckoff", elliott: "Elliott", smc: "Smart money", price_action: "Price action", trend: "Trend", macro: "Macro", skeptic: "Skeptic", sentiment: "Psychology", stophunt: "Stop-hunt", ict: "ICT", psychology: "Discipline" };
 
 const zoneTxt = z => z ? `${fmt(z[0])} – ${fmt(z[1])}` : "n/a";
 const agentLabel = r => r.status === "OK" ? (r.bias_label || r.bias) : (r.status === "ERROR" ? "ERROR" : "NO DATA");
@@ -1343,11 +1378,12 @@ function drawLevels() {
   }
 }
 
-async function loadAgents(refresh = false) {
+async function loadAgents(refresh = false, byHand = false) {   // byHand: the Refresh button (shows the orb)
   if (agentState.loading) return;
   agentState.loading = true;
   $("refreshBtn").disabled = true;
   if (refresh) $("aStatus").textContent = "Running all agents…";
+  if (byHand) orbShow();
   try {
     const r = await fetch(`/api/analysis${refresh ? "?refresh=true" : ""}`, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -1365,6 +1401,7 @@ async function loadAgents(refresh = false) {
   } finally {
     agentState.loading = false;
     $("refreshBtn").disabled = false;
+    if (byHand) orbHide();
   }
 }
 function tickNext() {
@@ -1373,7 +1410,65 @@ function tickNext() {
   $("nextIn").textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
   if (left === 0) loadAgents();
 }
-$("refreshBtn").addEventListener("click", () => loadAgents(true));
+$("refreshBtn").addEventListener("click", () => loadAgents(true, true));
+
+// ---------- Neural orb: shown in the centre while a manual refresh re-runs every agent ----------
+const orb = { raf: 0, t0: 0, shownAt: 0, stepTimer: 0 };
+const ORB_STEPS = ["Wyckoff: reading the Daily and 4H phase", "Elliott: checking the wave count", "Smart money: mapping liquidity",
+  "Price action: reading the candles", "Trend analyst: weighing the timeframes", "Session and macro: dollar, silver, stocks",
+  "Market psychology: how the crowd behaves", "Stop-hunt: where the stops are resting", "ICT: sweep, CHoCH and FVG",
+  "Skeptic: arguing the other side", "Chief analyst: combining the votes"];
+function orbFrame(now) {
+  const cv = $("orbCanvas"), g = cv.getContext("2d"), W = cv.width, c = W / 2, t = (now - orb.t0) / 1000;
+  const light = document.documentElement.dataset.theme === "light";
+  g.clearRect(0, 0, W, W);
+  const n = 11, R = W * 0.38;                                      // one node per agent, the Chief in the centre
+  const nodes = [...Array(n)].map((_, i) => { const a = i / n * Math.PI * 2 + t * 0.15;
+    return [c + Math.cos(a) * R * (1 + 0.04 * Math.sin(t * 1.3 + i)), c + Math.sin(a) * R * (1 + 0.04 * Math.cos(t * 1.1 + i))]; });
+  g.lineWidth = 1.2;
+  nodes.forEach(([x, y], i) => {                                   // links: to the centre and to the next agent
+    const [x2, y2] = nodes[(i + 1) % n];
+    g.strokeStyle = light ? "rgba(41,98,255,.18)" : "rgba(120,150,255,.16)";
+    g.beginPath(); g.moveTo(x, y); g.lineTo(c, c); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke();
+    const k = (t * 0.55 + i * 0.37) % 1;                           // a signal pulse flowing into the centre
+    const px = x + (c - x) * k, py = y + (c - y) * k;
+    const pg = g.createRadialGradient(px, py, 0, px, py, 10);
+    pg.addColorStop(0, `rgba(240,180,41,${0.9 * (1 - k)})`); pg.addColorStop(1, "rgba(240,180,41,0)");
+    g.fillStyle = pg; g.beginPath(); g.arc(px, py, 10, 0, Math.PI * 2); g.fill();
+    g.fillStyle = light ? "#2962ff" : "#8fa8ff"; g.beginPath(); g.arc(x, y, 4 + 1.5 * Math.sin(t * 3 + i), 0, Math.PI * 2); g.fill();
+  });
+  g.save(); g.globalCompositeOperation = light ? "multiply" : "lighter";   // the orb: soft colour blobs breathing together
+  const blobs = [["240,180,41", 0.0, 1.0], ["41,98,255", 2.1, 0.9], ["0,191,165", 4.2, 0.8], ["255,120,60", 1.0, 0.7]];
+  const pulse = 1 + 0.06 * Math.sin(t * 2.2);
+  for (const [rgb, ph, sc] of blobs) {
+    const bx = c + Math.cos(t * 1.1 + ph) * W * 0.06, by = c + Math.sin(t * 1.4 + ph) * W * 0.06, br = W * 0.2 * sc * pulse;
+    const bg = g.createRadialGradient(bx, by, 0, bx, by, br);
+    bg.addColorStop(0, `rgba(${rgb},.85)`); bg.addColorStop(0.55, `rgba(${rgb},.35)`); bg.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = bg; g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+  const core = g.createRadialGradient(c, c, 0, c, c, W * 0.07);    // bright core = the Chief
+  core.addColorStop(0, "rgba(255,255,255,.95)"); core.addColorStop(1, "rgba(255,240,200,0)");
+  g.fillStyle = core; g.beginPath(); g.arc(c, c, W * 0.07, 0, Math.PI * 2); g.fill();
+  orb.raf = requestAnimationFrame(orbFrame);
+}
+function orbShow() {
+  const w = $("orbWrap"); if (!w || w.classList.contains("on")) return;
+  w.classList.add("on"); orb.shownAt = Date.now(); orb.t0 = performance.now();
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (still) { orb.t0 = performance.now() - 1500; orbFrame(performance.now()); cancelAnimationFrame(orb.raf); }
+  else orb.raf = requestAnimationFrame(orbFrame);
+  let i = 0; const st = $("orbStep");
+  const next = () => { st.style.opacity = 0; setTimeout(() => { st.textContent = ORB_STEPS[i++ % ORB_STEPS.length]; st.style.opacity = 1; }, 200); };
+  next(); orb.stepTimer = setInterval(next, 900);
+}
+function orbHide() {
+  const w = $("orbWrap"); if (!w || !w.classList.contains("on")) return;
+  setTimeout(() => {                                              // at least 1.4 s on screen, so it never just flashes
+    w.classList.remove("on"); clearInterval(orb.stepTimer);
+    setTimeout(() => cancelAnimationFrame(orb.raf), 400);
+  }, Math.max(0, 1400 - (Date.now() - orb.shownAt)));
+}
 $("tab-levels").addEventListener("click", e => {
   const b = e.target.closest("[data-lv]"); if (!b || !agentState.data) return;
   lsSet("lvMode", b.dataset.lv); renderAgents(agentState.data); drawLevels();
@@ -1440,8 +1535,35 @@ function setWide(wide) {
   $("bigBtn").classList.toggle("on", wide);
   $("bigBtn").classList.toggle("on", wide);
 }
-const MORE_TABS = ["agents", "track", "calendar", "backtest", "demo"];          // grouped under "Analysis"
+const MORE_TABS = ["agents", "track"];          // grouped under "Analysis"
+// Backtest, News and Demo are full-width pages on Home (moved out of the side panel, with their listeners).
+// The Calendar lives inside Demo, as its second sub-tab.
+const HOME_PAGES = ["backtest", "calendar", "news", "demo"];
+for (const pg of ["backtest", "news", "demo", "calendar"]) { const t = $("tab-" + pg); t.classList.replace("tab", "hpage"); $("homePage").appendChild(t); }
+$("tab-demo").insertAdjacentHTML("beforebegin", `<div class="seg jsub" id="demoSub" hidden>
+  <button data-dsub="demo" class="on">Demo account</button><button data-dsub="calendar">Calendar</button></div>`);
+$("demoSub").addEventListener("click", e => { const b = e.target.closest("[data-dsub]"); if (b) showHomePage(b.dataset.dsub); });
+function showHomePage(pg) {
+  if (!HOME_PAGES.includes(pg)) pg = "accounts";
+  const nav = pg === "calendar" ? "demo" : pg;                 // Calendar is shown under the Demo button
+  for (const b of $("homeNav").querySelectorAll("[data-hp]")) b.classList.toggle("on", b.dataset.hp === nav);
+  $("homeView").hidden = pg !== "accounts";
+  $("homePage").hidden = pg === "accounts";
+  for (const x of HOME_PAGES) $("tab-" + x).hidden = x !== pg;
+  $("demoSub").hidden = nav !== "demo";
+  for (const b of $("demoSub").querySelectorAll("[data-dsub]")) b.classList.toggle("on", b.dataset.dsub === pg);
+  lsSet("homePage", pg);
+  $("homeShell").scrollTop = 0;
+  window.dispatchEvent(new Event("resize"));
+}
+$("homeNav").addEventListener("click", e => {
+  const b = e.target.closest("[data-hp]"); if (!b) return;
+  if (b.dataset.hp === "accounts") { J.acc = null; setView("home"); }
+  showHomePage(b.dataset.hp);
+});
+showHomePage(lsGet("homePage", "accounts"));
 function showTab(name) {
+  if (HOME_PAGES.includes(name)) { setView("home"); showHomePage(name); return; }
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     b.classList.toggle("on", b.dataset.tab === name);
     b.setAttribute("aria-selected", b.dataset.tab === name);
@@ -1469,7 +1591,7 @@ $("tabs").addEventListener("click", e => {
   showTab(b.dataset.tab);
   if (wide) setWide(false);
 });
-showTab(["plan", "agents", "levels", "track", "backtest", "news", "demo", "calendar"].includes(lsGet("tab", "plan")) ? lsGet("tab", "plan") : "plan");
+showTab(["plan", "agents", "levels", "track"].includes(lsGet("tab", "plan")) ? lsGet("tab", "plan") : "plan");
 document.addEventListener("click", e => { if ($("railMore") && !$("railMore").hidden && !e.target.closest("#tabs")) { $("railMore").hidden = true;
   document.querySelector(".railmorebtn").setAttribute("aria-expanded", "false"); } });
 // the backtest "running" dot also shows on the Analysis button
@@ -1543,8 +1665,13 @@ function btPreset(days) {
 function renderBacktestTab() {
   const lim = btLimits();
   const runs = (bt.info && bt.info.runs) || [];
+  const money = v => v == null ? "" : ` · ${v < 0 ? "−" : "+"}$${Math.abs(Math.round(v)).toLocaleString()}`;
   $("tab-backtest").innerHTML = `
-    <div class="card" id="hcCard"><div class="meta">Loading the health check…</div></div>
+    <div class="hhead"><div><h2>Backtest</h2><div class="meta">Today's rules replayed on past gold prices. Pick a saved run, or start a new one.</div></div>
+      <div class="hbtns"><select id="btPick" aria-label="Saved runs">${runs.length ? runs.map(r => `<option value="${r.id}" ${bt.shown === r.id ? "selected" : ""}>${dshort(r.start)} – ${dshort(r.end - 86400)} · ${esc(String(r.step))} · ${r.n} trades${money(r.total_usd)}</option>`).join("")
+          : `<option>No saved runs yet</option>`}</select>
+        <button data-btp="new" class="${bt.panel === "new" ? "on" : ""}">＋ New backtest</button><button data-btp="health" class="${bt.panel === "health" ? "on" : ""}">Health check</button></div></div>
+    <div id="btNew" ${bt.panel === "new" ? "" : "hidden"}>
     <div class="card"><div class="sect">Choose a period to test</div>
       ${!lim ? `<div class="warn">No downloaded history yet. Run <b>backtest.py</b> once (see README_backtest.md), then reopen this tab.</div>` : `
       <div class="seg presets" id="btPresets">
@@ -1575,15 +1702,9 @@ function renderBacktestTab() {
       <div class="frm"><button class="primary" id="btRun">Run backtest</button><span class="meta">Data available ${lim.min} to ${lim.max}</span></div>
       <div id="btProg"></div>`}
     </div>
-    <div id="btResult"></div>
-    <div class="card"><div class="sect">Saved runs · click to open</div>
-      ${runs.length ? `<table class="lvtable btruns">${runs.map(r => `<tr data-run="${r.id}" class="${bt.shown === r.id ? "sel" : ""}">
-        <td>${dshort(r.start)} – ${dshort(r.end - 86400)}</td><td class="meta">${r.step}</td><td>${r.n} trades</td>
-        <td>${r.win_rate != null ? r.win_rate + "%" : "—"}</td><td class="p ${rcls(r.total_r)}">${rtxt(r.total_r)}</td>
-        <td class="p ${rcls(r.total_usd)}">${r.total_usd != null ? (r.total_usd < 0 ? "−" : "+") + "$" + Math.abs(Math.round(r.total_usd)).toLocaleString() : ""}</td>
-        <td class="d">${new Date(r.made_at * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td></tr>`).join("")}</table>`
-        : `<div class="meta">No runs yet. Pick a period above and press Run.</div>`}
-    </div>`;
+    </div>
+    <div id="btHealth" ${bt.panel === "health" ? "" : "hidden"}><div class="card" id="hcCard"><div class="meta">Loading the health check…</div></div></div>
+    <div id="btResult"></div>`;
   if (lim) { btPreset(30); }
   hcRender();
 }
@@ -1694,6 +1815,145 @@ function dailyCards(d, usd, ucls) {
       <div class="meta" style="margin-top:8px">Days are when trades closed, in your local time. Days without a closed trade are not listed.</div></div>`;
 }
 
+// Backtest result, laid out like a journal account page: result card and Months / Calendar / Trades / Details on the
+// left; stats, equity and day by day on the right. Days are when trades closed, in your local time.
+function btGroups(d) {
+  const val = t => t.usd ?? t.r, g = { y: new Map(), m: new Map(), d: new Map() };
+  d.trades.forEach((t, i) => {
+    const k = new Date(t.exit_t * 1000).toLocaleDateString("en-CA");               // YYYY-MM-DD, local time
+    for (const [map, key] of [[g.y, k.slice(0, 4)], [g.m, k.slice(0, 7)], [g.d, k]]) {
+      if (!map.has(key)) map.set(key, { pnl: 0, n: 0, won: 0, lost: 0, ti: [], bal: null });
+      const x = map.get(key);
+      x.pnl += val(t); x.n++; t.r > 0 ? x.won++ : t.r < 0 && x.lost++; x.ti.push(i);
+      if (t.balance != null) x.bal = t.balance;
+    }
+  });
+  return g;
+}
+const btHasUsd = d => d.trades.every(t => t.usd != null);
+const btVal = t => t.usd ?? t.r;
+const btShow = (d, v) => btHasUsd(d) ? `${v < 0 ? "−" : v > 0 ? "+" : ""}$${Math.abs(Math.round(v)).toLocaleString()}` : rtxt(v);
+const btCls = v => v > 0 ? "up" : v < 0 ? "dn" : "";
+const btMonthName = k => new Date(k + "-15T12:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" });
+function btTradeLine(d, i) {
+  const t = d.trades[i];
+  return `<div class="dtrade tclick" data-ti="${i}" title="Click to replay"><span class="bias ${t.side}">${t.side}</span>
+    <span>${new Date(t.entry_t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} → ${new Date(t.exit_t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+    <span class="meta">${fmt(t.entry)} → ${fmt(t.exit)} · ${esc(t.why)}</span><b class="${btCls(btVal(t))}">${btShow(d, btVal(t))}</b></div>`;
+}
+function btMonthsHtml(d) {
+  const g = bt.groups, pv = bt.pv, years = [...g.y.keys()], show = v => btShow(d, v);
+  const bal = x => x.bal != null ? "$" + Math.round(x.bal).toLocaleString() : "";
+  const months = [...g.m.keys()].filter(k => k.startsWith(pv.year)), yx = g.y.get(pv.year);
+  const maxAbs = Math.max(1, ...months.map(k => Math.abs(g.m.get(k).pnl)));
+  return `<div class="card"><div class="sect">Month by month · tap a month to see its days</div>
+    ${years.length > 1 ? `<div class="btyears" style="margin-bottom:10px">${years.map(y => { const x = g.y.get(y);
+      return `<button class="btyear ${y === pv.year ? "on" : ""}" data-bty="${y}"><b>${y}</b><span class="${btCls(x.pnl)}">${show(x.pnl)}</span>
+        <span class="meta">${x.n} trades</span></button>`; }).join("")}</div>` : ""}
+    <table class="lvtable btmonths"><tr class="meta"><td>Month</td><td class="d">Trades</td><td class="d">Won / lost</td><td style="text-align:right">Profit / loss</td><td></td><td class="d">Balance</td></tr>
+    ${months.map(k => { const x = g.m.get(k);
+      return `<tr class="tclick ${k === pv.month ? "sel" : ""}" data-btm="${k}"><td><b>${btMonthName(k)}</b></td><td class="d">${x.n}</td><td class="d">${x.won} / ${x.lost}</td>
+        <td class="p ${btCls(x.pnl)}" style="text-align:right"><b>${show(x.pnl)}</b></td>
+        <td style="width:24%"><span class="dbar"><i class="${x.pnl >= 0 ? "pos" : "neg"}" style="width:${Math.round(100 * Math.abs(x.pnl) / maxAbs)}%"></i></span></td>
+        <td class="d meta">${bal(x)}</td></tr>`; }).join("")}
+    <tr class="bttotal"><td><b>${pv.year} total</b></td><td class="d">${yx.n}</td><td class="d">${yx.won} / ${yx.lost}</td>
+      <td class="p ${btCls(yx.pnl)}" style="text-align:right"><b>${show(yx.pnl)}</b></td><td></td><td class="d meta">${bal(yx)}</td></tr></table>
+    <div class="meta" style="margin-top:6px">${months.filter(k => g.m.get(k).pnl > 0).length} winning and ${months.filter(k => g.m.get(k).pnl < 0).length} losing months in ${pv.year}.</div></div>`;
+}
+function btCalendarHtml(d) {
+  const g = bt.groups, pv = bt.pv, show = v => btShow(d, v);
+  const [yy, mm] = pv.month.split("-").map(Number), lead = (new Date(yy, mm - 1, 1).getDay() + 6) % 7, nDays = new Date(yy, mm, 0).getDate();
+  const mx = g.m.get(pv.month), allM = [...g.m.keys()], mi = allM.indexOf(pv.month);
+  let cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="cday empty"></div>`;
+  for (let dd = 1; dd <= nDays; dd++) {
+    const k = `${pv.month}-${String(dd).padStart(2, "0")}`, x = g.d.get(k);
+    cells += `<button class="cday ${!x ? "" : x.pnl > 0 ? "pos" : x.pnl < 0 ? "neg" : "flat"} ${k === pv.day ? "sel" : ""}" data-btday="${k}" ${x ? "" : "disabled"}>
+      <span class="dn">${dd}</span>${x ? `<span class="pl">${show(x.pnl)}</span><span class="tg">${x.n}T</span>` : ""}</button>`;
+  }
+  const dx = pv.day && g.d.get(pv.day), days = [...g.d.keys()].filter(k => k.startsWith(pv.month));
+  return `<div class="card"><div class="sect">Calendar · tap a day to see its trades</div>
+    <div class="calhead"><button data-btmv="-1" ${mi <= 0 ? "disabled" : ""} aria-label="Previous month with trades">‹</button>
+      <b>${btMonthName(pv.month)}</b><span class="${btCls(mx ? mx.pnl : 0)}">${mx ? show(mx.pnl) : ""}</span>
+      <button data-btmv="1" ${mi >= allM.length - 1 ? "disabled" : ""} aria-label="Next month with trades">›</button></div>
+    <div class="meta" style="margin:-4px 0 6px">${days.filter(k => g.d.get(k).pnl > 0).length} green day(s) · ${days.filter(k => g.d.get(k).pnl < 0).length} red day(s) this month</div>
+    <div class="calgrid">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(w => `<div class="cwk">${w}</div>`).join("")}${cells}</div>
+    ${dx ? `<div class="sect" style="margin-top:12px">${new Date(pv.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        · <span class="${btCls(dx.pnl)}">${show(dx.pnl)}</span></div>${dx.ti.map(i => btTradeLine(d, i)).join("")}`
+      : `<div class="meta" style="margin-top:6px">Tap a day to see its trades.</div>`}</div>`;
+}
+function btTradesHtml(d) {
+  const lim = bt.tradeLimit || 100, idx = d.trades.map((_, i) => i).reverse();
+  const rows = idx.slice(0, lim).map(i => { const t = d.trades[i];
+    return `<tr class="tclick" data-ti="${i}" title="Click to replay"><td>${new Date(t.exit_t * 1000).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+      <td><span class="bias ${t.side}">${t.side}</span></td><td class="p">${fmt(t.entry)} → ${fmt(t.exit)}</td><td class="meta">${esc(t.why)}</td>
+      <td class="p ${rcls(t.r)}">${rtxt(t.r)}</td><td class="p ${btCls(btVal(t))}" style="text-align:right">${btShow(d, btVal(t))}</td></tr>`; }).join("");
+  return `<div class="card"><div class="sect">Trades · newest first · click one to replay it</div>
+    <div class="jtable"><table class="lvtable"><tr class="meta"><td>Closed</td><td>Side</td><td>Entry → exit</td><td>Why it closed</td><td>R</td><td style="text-align:right">Profit / loss</td></tr>${rows}</table></div>
+    ${idx.length > lim ? `<div class="frm"><button data-btmoretr="1">Show ${Math.min(100, idx.length - lim)} more (${idx.length - lim} left)</button></div>` : ""}</div>`;
+}
+function btDraw() {
+  const d = bt.result, p = d.params, u = d.usd, g = bt.groups, pv = bt.pv, show = v => btShow(d, v);
+  if (!d.trades.length) { $("btResult").innerHTML = `<div class="card meta">No trades in this run.</div>`; return; }
+  const stat = (v, k, c = "") => `<div class="stat"><div class="v ${c}">${v}</div><div class="k">${k}</div></div>`;
+  const dlong = t => new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const vals = d.trades.map(btVal), wins = vals.filter(v => v > 0), losses = vals.filter(v => v < 0);
+  const sum = a => a.reduce((x, y) => x + y, 0), gain = sum(wins), loss = sum(losses);
+  let cum = 0; const curve = d.trades.map(t => [t.exit_t, (cum += btVal(t))]);
+  const days = [...g.d.keys()].filter(k => k.startsWith(pv.month)).reverse(), maxDay = Math.max(1, ...days.map(k => Math.abs(g.d.get(k).pnl)));
+  const years = [...g.y.keys()], sub = bt.sub || "months";
+  $("btResult").innerHTML = `<div class="hgrid">
+    <div>
+      <div class="card jpanel"><div class="sect">Result · ${dlong(p.start)} – ${dlong(p.end - 86400)}</div>
+        <div class="meta" style="margin-bottom:8px">${p.lot} lot · $${(+(u ? u.account : p.account || 0)).toLocaleString()} account · day limits −$${p.day_max_loss || "off"} / +$${p.day_max_profit || "off"}${p.source ? ` · ${esc(p.source)}` : ""}</div>
+        <div class="jbig">${u ? `<div><div class="k">Ending balance</div><div class="big">$${Math.round(u.end_balance).toLocaleString()}</div></div>
+          <div><div class="k">Profit / loss</div><div class="big ${btCls(u.total_usd)}">${show(u.total_usd)}</div></div>
+          <div><div class="k">Return</div><div class="big ${btCls(u.return_pct)}">${u.return_pct > 0 ? "+" : ""}${u.return_pct}%</div></div>`
+          : `<div><div class="k">Result</div><div class="big ${rcls(d.summary.total_r)}">${rtxt(d.summary.total_r)}</div></div>`}
+          <div><div class="k">Trading days</div><div class="big">${g.d.size}</div></div></div>
+        ${u ? `<div class="meta">Biggest drop from a high: <b class="dn">$${Math.round(u.max_dd_usd).toLocaleString()}</b> · at worst ${d.summary.streak} losses in a row.</div>` : ""}</div>
+      <div class="seg jsub">${[["months", "Months"], ["calendar", "Calendar"], ["trades", "Trades"], ["details", "Details"]]
+          .map(([k, l]) => `<button data-btsub="${k}" class="${sub === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      ${sub === "calendar" ? btCalendarHtml(d) : sub === "trades" ? btTradesHtml(d) : sub === "details" ? bt.detailsHtml
+        : btMonthsHtml(d) + (bt.pv.open ? `<div id="btMonthCal">${btCalendarHtml(d)}</div>` : "")}
+    </div>
+    <aside>
+      <div class="card"><div class="sect">Stats · this run</div>
+        <div class="stats two">${stat(vals.length, "closed trades")}${stat(Math.round(100 * wins.length / vals.length) + "%", "win rate")}
+          ${stat(wins.length ? show(gain / wins.length) : "—", "average win", "up")}${stat(losses.length ? show(loss / losses.length) : "—", "average loss", "dn")}
+          ${stat(loss ? (gain / -loss).toFixed(2) : "—", "profit factor")}${stat(rtxt(d.summary.avg_r), "average R")}
+          ${stat(show(Math.max(...vals)), "best", btCls(Math.max(...vals)))}${stat(show(Math.min(...vals)), "worst", btCls(Math.min(...vals)))}</div>
+        ${equitySvg(curve, btHasUsd(d) ? "$" : "R")}</div>
+      ${days.length ? `<div class="card"><div class="sect">Day by day · ${btMonthName(pv.month)}</div>${days.map(k => { const x = g.d.get(k);
+          return `<div class="jday tclick" data-btday="${k}"><span>${k}</span><span class="dbar"><i class="${x.pnl >= 0 ? "pos" : "neg"}" style="width:${Math.round(100 * Math.abs(x.pnl) / maxDay)}%"></i></span>
+            <b class="${btCls(x.pnl)}">${show(x.pnl)}</b></div>`; }).join("")}</div>` : ""}
+      ${years.length > 1 ? `<div class="card"><div class="sect">By year</div><table class="lvtable">${years.map(y => { const x = g.y.get(y);
+          return `<tr class="tclick" data-bty="${y}"><td><b>${y}</b></td><td class="d">${x.n}</td><td class="d">${Math.round(100 * x.won / x.n)}%</td>
+            <td class="p ${btCls(x.pnl)}" style="text-align:right">${show(x.pnl)}</td></tr>`; }).join("")}</table></div>` : ""}
+    </aside></div>`;
+}
+function btPeriodsClick(e) {
+  const y = e.target.closest("[data-bty]"), m = e.target.closest("[data-btm]"), dy = e.target.closest("[data-btday]"), mv = e.target.closest("[data-btmv]");
+  const sb = e.target.closest("[data-btsub]"), more = e.target.closest("[data-btmoretr]"), pn = e.target.closest("[data-btp]");
+  if (pn) {                                   // header buttons: open / close the New backtest or Health check panel
+    bt.panel = bt.panel === pn.dataset.btp ? null : pn.dataset.btp;
+    $("btNew").hidden = bt.panel !== "new"; $("btHealth").hidden = bt.panel !== "health";
+    for (const b of document.querySelectorAll("[data-btp]")) b.classList.toggle("on", b.dataset.btp === bt.panel);
+    return true;
+  }
+  if (!(y || m || dy || mv || sb || more) || !bt.result || !bt.result.trades) return false;
+  const pv = bt.pv, allM = [...bt.groups.m.keys()];
+  if (sb) bt.sub = sb.dataset.btsub;
+  if (more) bt.tradeLimit = (bt.tradeLimit || 100) + 100;
+  if (y) { pv.year = y.dataset.bty; pv.month = allM.filter(k => k.startsWith(pv.year)).pop(); pv.day = null; pv.open = false; bt.sub = "months"; }
+  if (m) { pv.open = !(pv.open && pv.month === m.dataset.btm); pv.month = m.dataset.btm; pv.day = null; bt.sub = "months"; }  // month's days open under the table
+  if (mv) { pv.month = allM[Math.min(allM.length - 1, Math.max(0, allM.indexOf(pv.month) + +mv.dataset.btmv))]; pv.year = pv.month.slice(0, 4); pv.day = null; }
+  if (dy) { const k = dy.dataset.btday; pv.day = pv.day === k ? null : k; pv.month = k.slice(0, 7); pv.year = k.slice(0, 4);
+    if (bt.sub !== "calendar") { bt.sub = "months"; pv.open = true; } }
+  btDraw();
+  if ((m && pv.open) || (mv && bt.sub === "months")) $("btMonthCal")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  return true;
+}
 function renderBtResult(d, id) {
   bt.shown = id; bt.result = d;
   if (d.error) { $("btResult").innerHTML = `<div class="card"><div class="warn">${esc(d.error)}</div></div>`; return; }
@@ -1711,7 +1971,12 @@ function renderBtResult(d, id) {
     <td><span class="bias ${t.side}">${t.side}</span></td><td class="meta">${t.kind === "now" ? "NOW" : "WAIT then"}</td>
     <td class="p">${fmt(t.entry)}</td><td class="meta">${esc(t.why)}</td><td class="p ${rcls(t.r)}" style="text-align:right">${rtxt(t.r)}</td>
     <td class="p ${ucls(t.usd)}" style="text-align:right">${usd(t.usd)}</td></tr>`).join("");
-  $("btResult").innerHTML = `
+  if (bt.pvFor !== id) {                         // open on the newest month of this run
+    bt.groups = btGroups(d); bt.pvFor = id; bt.sub = "months"; bt.tradeLimit = 100;
+    const lastM = [...bt.groups.m.keys()].pop() || "";
+    bt.pv = { year: lastM.slice(0, 4), month: lastM, day: null, open: false };
+  }
+  bt.detailsHtml = `
     <div class="card"><div class="sect">Result · ${dshort(p.start)} – ${dshort(p.end - 86400)} · ${p.step} steps · $${(+p.spread).toFixed(2)} per side
         ${p.target_rr ? ` · target ${p.target_rr}R` : " · plan's target"}${p.partial === false ? "" : " · half off at 1R"}${p.adaptive ? " · performance weights" : " · fixed weights"}${p.day_max_loss || p.day_max_profit ? ` · day limits −$${p.day_max_loss || "off"} / +$${p.day_max_profit || "off"}` : ""}${
         p.live_rules === false ? " · without live rules" : p.live_rules ? " · live rules" : ""}${p.stop_slip ? ` · +$${p.stop_slip} stop slippage` : ""}${
@@ -1735,7 +2000,6 @@ function renderBtResult(d, id) {
       ${equitySvg(d.equity)}
       <ul class="btlines">${d.lines.map(x => `<li>${esc(x.trim())}</li>`).join("")}</ul>
       <div class="meta">R = result in "risk units": 1R is what you lose when the stop is hit. Past results do not guarantee future results.</div></div>
-    ${dailyCards(d, usd, ucls)}
     ${(() => { const h = (d.counts.weights_history || []).filter(w => Object.keys(w.mult).length); if (!h.length) return "";
         const last = h[h.length - 1];
         return `<div class="card"><div class="sect">Performance weights in the last week of the test (${h.length} weeks adjusted)</div><div class="chips">${
@@ -1744,7 +2008,8 @@ function renderBtResult(d, id) {
     <div class="card"><div class="sect">Agents: 4-hour direction right?</div><table class="lvtable">${ag}</table>
       <div class="meta" style="margin-top:6px">About 50% is a coin flip.</div></div>
     ${trades ? `<div class="card"><div class="sect">Trades · newest first · click one to replay it</div><table class="lvtable">${trades}</table></div>` : ""}`;
-  for (const tr of document.querySelectorAll(".btruns tr")) tr.classList.toggle("sel", tr.dataset.run === id);
+  btDraw();
+  if ($("btPick")) $("btPick").value = id;
 }
 async function btOpen(id) {
   $("btResult").innerHTML = `<div class="card meta">Loading…</div>`;
@@ -1780,6 +2045,7 @@ async function btPoll() {
   }
 }
 $("tab-backtest").addEventListener("click", async e => {
+  if (btPeriodsClick(e)) return;
   const pre = e.target.closest("#btPresets button"); if (pre) return btPreset(+pre.dataset.days);
   const row = e.target.closest("tr[data-run]"); if (row) return btOpen(row.dataset.run);
   const hcb = e.target.closest("[data-hc]");
@@ -1808,6 +2074,7 @@ $("tab-backtest").addEventListener("click", async e => {
   btPoll();
 });
 $("tab-backtest").addEventListener("change", e => {
+  if (e.target.id === "btPick") { if (e.target.value.startsWith("bt_")) btOpen(e.target.value); return; }
   if (["btFrom", "btTo", "btStep"].includes(e.target.id)) {
     for (const b of document.querySelectorAll("#btPresets button")) b.classList.remove("on");
     if (e.target.id === "btStep") { const lim = btLimits(); $("btFrom").min = $("btTo").min = lim.min; if ($("btFrom").value < lim.min) $("btFrom").value = lim.min; }
@@ -1863,7 +2130,7 @@ setInterval(renderNews, 30000);
 // ---------- Trade replay: click a backtest trade to see its levels and replay it candle by candle ----------
 const rp = { chart: null, series: null, timer: null, i: 0, start: 0, data: [], markers: [], speed: 400 };
 function rpStop() { clearInterval(rp.timer); rp.timer = null; if ($("rpPlay")) $("rpPlay").textContent = "▶ Play"; }
-function rpDestroy() { rpStop(); if (rp.chart) { rp.chart.remove(); rp.chart = null; } }
+function rpDestroy() { rpStop(); rp.live = null; if (rp.chart) { rp.chart.remove(); rp.chart = null; } }
 function rpShow(i) {
   rp.i = Math.max(1, Math.min(rp.data.length, i));
   rp.series.setData(rp.data.slice(0, rp.i));
@@ -1882,22 +2149,27 @@ function rpPlay() {
 }
 async function openTrade(t) {
   rpDestroy();
-  t = { ...t, exit_t: t.exit_t || Math.floor(Date.now() / 1000) };
+  t = { ...t, entry_t: Math.floor(t.entry_t), decided_t: Math.floor(t.decided_t || t.entry_t),
+        exit_t: Math.floor(t.exit_t || Date.now() / 1000) };
+  const gap = t.gap || 0;                  // > 0 for demo trades: the futures candles are shown in spot prices
   const s = t.side === "BUY" ? 1 : -1, risk = Math.abs(t.entry - t.stop), be = t.entry + s * risk;
   const when = ts => new Date(ts * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const usdTxt = t.usd == null ? "" : ` · ${t.usd < 0 ? "−" : "+"}$${Math.abs(Math.round(t.usd)).toLocaleString()}`;
   const lot = (bt.result && bt.result.params.lot) || 0.1, d$ = x => `$${Math.round(Math.abs(x) * 100 * lot).toLocaleString()}`;
   $("modalBody").innerHTML = `
     <h2><span class="bias ${t.side}">${t.side} ${t.kind === "now" ? "NOW" : ""}</span> Trade replay
-      <span class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}" style="font-weight:700">${t.r > 0 ? "+" : ""}${t.r.toFixed(2)}R${usdTxt}</span></h2>
+      ${t.open ? `<span id="rpPnl" class="${t.usd > 0 ? "up" : t.usd < 0 ? "dn" : ""}" style="font-weight:700">open${usdTxt} now</span>`
+        : `<span class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}" style="font-weight:700">${t.r > 0 ? "+" : ""}${t.r.toFixed(2)}R${usdTxt}</span>`}</h2>
     <div class="meta">${esc(t.why)}</div>
     <div class="tlv">
       <div><span>Entry</span><b class="ent">${fmt(t.entry)}</b><i>${when(t.entry_t)}</i></div>
       <div><span>Stop loss</span><b class="dn">${fmt(t.stop)}</b><i>risk ${fmt(risk)} = ${d$(risk)}</i></div>
       <div><span>Half off · 1R</span><b class="up">${fmt(be)}</b><i>then stop to entry</i></div>
       <div><span>Target</span><b class="up">${fmt(t.t1)}</b><i>${fmt(Math.abs(t.t1 - t.entry))} = ${d$(t.t1 - t.entry)}</i></div>
-      <div><span>Exit</span><b class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}">${fmt(t.exit)}</b><i>${when(t.exit_t)}</i></div>
-      <div><span>Held</span><b>${Math.max(1, Math.round((t.exit_t - t.entry_t) / 3600 * 10) / 10)} h</b><i>decided ${when(t.decided_t || t.entry_t)}</i></div>
+      ${t.open ? `<div><span>Exit</span><b>still open</b><i>closes at stop, target or ${when(t.entry_t + 86400)}</i></div>`
+        : `<div><span>Exit</span><b class="${t.r > 0 ? "up" : t.r < 0 ? "dn" : ""}">${fmt(t.exit)}</b><i>${when(t.exit_t)}</i></div>`}
+      <div><span>${t.open ? "Open for" : "Held"}</span><b id="rpHeld">${(() => { const m = Math.max(1, Math.round((t.exit_t - t.entry_t) / 60));
+          return m < 60 ? m + " min" : Math.round(m / 6) / 10 + " h"; })()}</b><i>decided ${when(t.decided_t || t.entry_t)}</i></div>
     </div>
     <div id="rpChart" class="rpchart"><div class="meta" style="padding:12px">Loading candles…</div></div>
     <div class="rpctl">
@@ -1906,14 +2178,17 @@ async function openTrade(t) {
       <select id="rpSpeed" aria-label="Replay speed"><option value="800">Slow</option><option value="400" selected>Normal</option><option value="150">Fast</option></select>
     </div>
     <div class="rpinfo"><span id="rpTime"></span> · price <b id="rpPrice"></b></div>
-    <div class="meta" style="margin-top:6px">Gold futures candles (the ones the backtest used). Blue = entry, red = stop, dotted green = half off at 1R,
+    <div class="meta" style="margin-top:6px">${gap ? `Gold futures candles shifted to spot (−$${gap.toFixed(2)}, the gap when the trade opened), so the levels match the Demo account.`
+        : t.src === "backup" ? "Spot gold 15-minute candles from your trading_research backup (the data this backtest used)."
+        : "Gold futures candles (the ones the backtest used)."} Blue = entry, red = stop, dotted green = half off at 1R,
       green = target. Press Play to replay from the entry candle; drag the slider to jump.</div>`;
   $("modal").hidden = false;
   let res;
   try {
     const a = Math.min(t.decided_t || t.entry_t, t.entry_t) - 6 * 3600, b = t.exit_t + 2 * 3600;
-    res = await (await fetch(`/api/backtest/candles?start=${a}&end=${b}`)).json();
+    res = await (await fetch(`/api/backtest/candles?start=${Math.floor(a)}&end=${Math.floor(b)}${t.src ? "&src=" + t.src : ""}`)).json();
   } catch (e) { res = { error: e.message }; }
+  if (!res.error && !Array.isArray(res.candles)) res = { error: "Could not load candles for this trade." };
   if (res.error || !res.candles.length) { $("rpChart").innerHTML = `<div class="warn" style="padding:12px">${esc(res.error || "No candles for this trade.")}</div>`; return; }
   $("rpChart").innerHTML = "";
   rp.chart = LightweightCharts.createChart($("rpChart"), {
@@ -1921,7 +2196,9 @@ async function openTrade(t) {
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal } });
   rp.series = rp.chart.addCandlestickSeries({ upColor: "#089981", downColor: "#f23645", borderVisible: false,
                                               wickUpColor: "#089981", wickDownColor: "#f23645" });
-  rp.data = res.candles.map(c => ({ time: c.t + tzShift, open: c.o, high: c.h, low: c.l, close: c.c }));
+  rp.live = t.open ? t : null; rp.sec = res.sec;
+  rp.data = res.candles.filter(c => c.t % res.sec === 0)            // whole candles only (no half-built live point)
+    .map(c => ({ time: c.t + tzShift, open: c.o - gap, high: c.h - gap, low: c.l - gap, close: c.c - gap }));
   const line = (price, color, title, style = 0) => rp.series.createPriceLine({ price, color, lineWidth: 2, lineStyle: style, axisLabelVisible: true, title });
   line(t.entry, "#4c8dff", "ENTRY"); line(t.stop, "#f23645", "STOP"); line(be, "#089981", "HALF @1R", 2); line(t.t1, "#089981", "TARGET");
   const bar = ts => Math.floor(ts / res.sec) * res.sec + tzShift;
@@ -1934,6 +2211,7 @@ async function openTrade(t) {
   rp.series.setData(rp.data);
   rp.chart.timeScale().setVisibleLogicalRange({ from: -1, to: rp.data.length + 1 });
   rpShow(rp.data.length);                                // show the whole trade first; Play replays from the entry
+  if (rp.live && state.lastSpot) liveDemoTick(state.lastSpot.price, Date.now() / 1000);
   $("rpPlay").onclick = rpPlay;
   $("rpBack").onclick = () => { rpStop(); rpShow(rp.i - 1); };
   $("rpFwd").onclick = () => { rpStop(); rpShow(rp.i + 1); };
@@ -1942,7 +2220,7 @@ async function openTrade(t) {
 }
 $("tab-backtest").addEventListener("click", e => {
   const el = e.target.closest("[data-ti]");
-  if (el && bt.result) openTrade(bt.result.trades[+el.dataset.ti]);
+  if (el && bt.result) openTrade({ ...bt.result.trades[+el.dataset.ti], src: bt.result.params.source ? "backup" : "" });
 });
 $("modalClose").addEventListener("click", rpDestroy);
 $("modal").addEventListener("click", e => { if (e.target.id === "modal") rpDestroy(); });
@@ -1954,13 +2232,41 @@ async function loadDemo() {
   try { dm.data = await (await fetch("/api/demo", { cache: "no-store" })).json(); } catch { return; }
   if (dm.mode === "live") renderDemo(); else $("dmCount").textContent = dm.data.open.length ? "1" : "";
 }
+function demoPnl(t, price) {       // mirrors core/track.py: half closed at 1R, the rest marked to the live spot price
+  const s = t.side === "BUY" ? 1 : -1, oz = 100 * (t.lot || 0.1), cost = t.cost || 0;
+  const be = t.be ?? t.entry + s * Math.abs(t.entry - t.stop), rest = (price - s * cost - t.entry) * s * oz;
+  return Math.round((t.half ? 0.5 * (be - s * cost - t.entry) * s * oz + 0.5 * rest : rest) * 100) / 100;
+}
+function liveDemoTick(price, ts) {   // every spot poll: open demo P&L, equity and the replay's last candle follow the price
+  if (price == null) return;
+  const d = dm.data;
+  if (d && d.open.length) {
+    d.price = price;
+    let un = 0; for (const t of d.open) { t.unrealised = demoPnl(t, price); un += t.unrealised; }
+    d.equity = d.balance + un;
+    if (dm.mode === "live" && !$("tab-demo").hidden && !$("tab-demo").contains(document.activeElement)) renderDemo();
+  }
+  const t = rp.live; if (!t || !rp.series || $("modal").hidden) return;
+  t.usd = demoPnl(t, price);
+  const el = $("rpPnl");
+  if (el) { el.textContent = `open · ${demoUsd(t.usd)} now`; el.className = demoCls(t.usd); el.style.fontWeight = "700"; }
+  const m = Math.max(1, Math.round((ts - t.entry_t) / 60));
+  if ($("rpHeld")) $("rpHeld").textContent = m < 60 ? m + " min" : Math.round(m / 6) / 10 + " h";
+  const follow = rp.i >= rp.data.length;              // follow live only when not scrubbing back through the replay
+  const bar0 = Math.floor(ts / rp.sec) * rp.sec + tzShift, last = rp.data[rp.data.length - 1];
+  if (last && last.time === bar0) Object.assign(last, { high: Math.max(last.high, price), low: Math.min(last.low, price), close: price });
+  else if (last && bar0 > last.time) rp.data.push({ time: bar0, open: last.close, high: Math.max(last.close, price), low: Math.min(last.close, price), close: price });
+  else return;
+  $("rpSlider").max = rp.data.length;
+  if (follow && !rp.timer) rpShow(rp.data.length);
+}
 function demoUsd(v) { return v == null ? "—" : `${v < 0 ? "−" : v > 0 ? "+" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`; }
 function demoCls(v) { return v > 0 ? "up" : v < 0 ? "dn" : ""; }
-function demoToTrade(t) {          // demo rows are in spot terms; the replay chart uses futures candles (+ saved gap)
-  const g = t.gap || 0;
-  return { side: t.side, kind: "now", decided_t: t.ts, entry_t: t.ts, exit_t: t.closed_ts, entry: t.entry + g, stop: t.stop + g,
-           t1: t.t1 + g, exit: t.exit_price != null ? t.exit_price + g : null, r: t.result_r ?? 0,
-           usd: t.status === "open" ? t.unrealised : t.usd, why: t.why || t.status, open: t.status === "open" };
+function demoToTrade(t) {          // demo rows are in SPOT prices; `gap` shifts the futures candles to spot for the chart
+  return { side: t.side, kind: "now", decided_t: Math.floor(t.ts), entry_t: Math.floor(t.ts), exit_t: t.closed_ts ? Math.floor(t.closed_ts) : null,
+           entry: t.entry, stop: t.stop, t1: t.t1, exit: t.exit_price, r: t.result_r ?? 0, gap: t.gap || 0, half: !!t.half, lot: t.lot, cost: t.cost || 0,
+           usd: t.status === "open" ? t.unrealised : t.usd, why: t.status === "open" ? (t.half ? "open · half taken at 1R, stop at entry" : "open")
+             : (t.why || t.status), open: t.status === "open" };
 }
 function renderDemoLive() {
   const d = dm.data; if (!d) return `<div class="card meta">Loading the demo account…</div>`;
@@ -1998,11 +2304,11 @@ function renderDemoLive() {
     ${d.curve.length ? `<div class="card"><div class="sect">Demo equity · profit / loss since start</div>${equitySvg(d.curve, "$")}</div>` : ""}
     <div class="card"><div class="sect">Closed demo trades · newest first · click to replay</div>
       ${rows ? `<table class="lvtable">${rows}</table>` : `<div class="meta">None yet. The first one appears after AuEdge's first BUY NOW / SELL NOW while the market is open.
-        Meanwhile, see how it would have traded: switch to <b>Last month (simulated)</b> above.</div>`}</div>`;
+        Meanwhile, see how it would have traded in the <b>Backtest</b> page.</div>`}</div>`;
 }
 
 // Last month, simulated: today's rules replayed over the last ~30 days of real candles, shown like the demo account.
-dm.mode = lsGet("demoMode", "live") === "month" ? "month" : "live";
+dm.mode = "live";                    // the Demo page shows only the live demo (the simulated month view is no longer offered)
 async function loadDemoMonth() {
   try { dm.monthResp = await (await fetch("/api/demo/month", { cache: "no-store" })).json(); } catch { return; }
   if (dm.monthResp.status === "running") setTimeout(loadDemoMonth, 2000);
@@ -2042,10 +2348,7 @@ function renderDemoMonth() {
     <div class="card"><div class="sect">All trades · newest first · click to replay</div><table class="lvtable">${rows}</table></div>`;
 }
 function renderDemo() {
-  $("tab-demo").innerHTML = `<div class="seg demomode">
-      <button data-dmode="live" class="${dm.mode === "live" ? "on" : ""}">Live demo</button>
-      <button data-dmode="month" class="${dm.mode === "month" ? "on" : ""}">Last month (simulated)</button></div>`
-    + (dm.mode === "live" ? renderDemoLive() : renderDemoMonth());
+  $("tab-demo").innerHTML = renderDemoLive();
 }
 $("tab-demo").addEventListener("click", async e => {
   const mode = e.target.closest("[data-dmode]"), act = e.target.closest("[data-act]"), ti = e.target.closest("[data-ti]");
@@ -2062,7 +2365,6 @@ $("tab-demo").addEventListener("click", async e => {
   else if (c) openTrade(demoToTrade(dm.data.closed[+c.dataset.dclosed]));
 });
 loadDemo();
-loadDemoMonth();
 setInterval(() => { if (dm.mode === "live") loadDemo(); }, 30000);
 
 // ---------- "Calls 7d" on the chart: arrows for the last week's trade calls; click one to replay it ----------
@@ -2206,13 +2508,16 @@ async function openDayReplay() {
     <div class="rpinfo"><span id="rpTime"></span> · price <b id="rpPrice"></b></div>`;
   $("modal").hidden = false;
   let res;
-  try { res = await (await fetch(`/api/backtest/candles?start=${Math.min(d.window[0], ...d.trades.map(t => t.entry_t - 3600))}&end=${d.window[1]}`)).json(); } catch (e) { res = { error: e.message }; }
+  try { res = await (await fetch(`/api/backtest/candles?start=${Math.floor(Math.min(d.window[0], ...d.trades.map(t => t.entry_t - 3600)))}&end=${Math.floor(d.window[1])}`)).json(); } catch (e) { res = { error: e.message }; }
+  if (!res.error && !Array.isArray(res.candles)) res = { error: "Could not load candles for this day." };
+  const dgap = (d.trades.find(x => x.gap) || {}).gap || 0;       // live demo trades are in spot: show the candles in spot too
   if (res.error || !res.candles.length) { $("rpChart").innerHTML = `<div class="warn" style="padding:12px">${esc(res.error || "No candles for this day.")}</div>`; return; }
   $("rpChart").innerHTML = "";
   rp.chart = LightweightCharts.createChart($("rpChart"), {
     autoSize: true, ...chartColors(), timeScale: { ...chartColors().timeScale, timeVisible: true, secondsVisible: false } });
   rp.series = rp.chart.addCandlestickSeries({ upColor: "#089981", downColor: "#f23645", borderVisible: false, wickUpColor: "#089981", wickDownColor: "#f23645" });
-  rp.data = res.candles.map(c => ({ time: c.t + tzShift, open: c.o, high: c.h, low: c.l, close: c.c }));
+  rp.data = res.candles.filter(c => c.t % res.sec === 0)
+    .map(c => ({ time: c.t + tzShift, open: c.o - dgap, high: c.h - dgap, low: c.l - dgap, close: c.c - dgap }));
   const bar = ts => Math.floor(ts / res.sec) * res.sec + tzShift, have = new Set(rp.data.map(c => c.time)), m = [];
   for (const a of d.timeline.filter(a => a.k === "now")) if (have.has(bar(a.t - 1)))
     m.push({ time: bar(a.t - 1), position: a.sd === "BUY" ? "belowBar" : "aboveBar", color: "#f0b429", shape: "circle", size: 0.6, text: "NOW" });
@@ -2379,7 +2684,54 @@ $("tab-agents").addEventListener("change", async e => {
   rvLoad();
 });
 rvLoad();
+
+// ---------- Trade reviewer: who suggested each finished trade, why it won or lost, what our winners have in common ----------
+const trv = { data: null };
+async function trvLoad() {
+  try { trv.data = await (await fetch("/api/trade_review", { cache: "no-store" })).json(); } catch { return; }
+  trvRender();
+}
+function trvRender() {
+  const el = $("tradeReviewCard"), d = trv.data; if (!el || !d || !d.made_at) return;
+  const name = a => esc(d.labels[a] || LABELS[a] || a), off = new Set(d.voting_off || []);
+  const pct = x => Math.round(x * 100) + "%", rr = x => `${x > 0 ? "+" : ""}${x.toFixed(2)}R`;
+  const verdict = { strong: `<span class="chip up">strong</span>`, weak: `<span class="chip dn">weak</span>`, ok: `<span class="chip">ok</span>`,
+                    "few trades": `<span class="meta">few trades</span>` };
+  const agents = d.agents.map(a => `<tr><td>${name(a.agent)}${off.has(a.agent) ? ` <span class="meta">(vote off)</span>` : ""}</td>
+      <td class="p up">${a.helped}</td><td class="p dn">${a.hurt}</td><td class="p">${pct(a.acc)}</td><td>${verdict[a.verdict] || ""}</td></tr>`).join("");
+  const condName = { trend: "Trend", agreement: "Agreement", session: "Session", news: "News during trade" };
+  const conds = d.conditions.map(c => `<tr><td>${condName[c.cond] || c.cond}: <b>${esc(c.val)}</b></td><td class="p">${c.n}</td>
+      <td class="p ${c.win >= 0.6 ? "up" : c.win < 0.45 ? "dn" : ""}">${pct(c.win)}</td><td class="p ${demoCls(c.avg_r)}">${rr(c.avg_r)}</td></tr>`).join("");
+  const why = rv => (rv.reasons || []).map(k => esc((rv.won ? d.win_text : d.reason_text)[k] || k)).join("; ") || (rv.won ? "plan worked" : "no clear single cause");
+  const row = rv => `<li><span class="bias ${rv.side}">${rv.side}</span> <span class="meta">${new Date(rv.t * 1000).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+      <b class="${rv.won ? "up" : "dn"}">${rv.won ? "WON" : "LOST"} ${rr(rv.r)}</b><br>
+      <span class="meta">For: ${rv.for.map(name).join(", ") || "none"} · Against: ${rv.against.map(name).join(", ") || "none"}</span><br>
+      ${rv.won ? "Why it worked" : "Why it went wrong"}: ${why(rv)}</li>`;
+  const weak = d.agents.filter(a => a.verdict === "weak" && !off.has(a.agent));
+  el.innerHTML = `<div class="sect">Trade reviewer · studies every win and every loss</div>
+    <div class="meta" style="margin-bottom:8px">After each finished trade it records who suggested it, who was against, and why it won or lost.
+      Evidence: ${d.n_live} live demo trade(s) + ${d.n_backtest} backtest trades. It never changes the rules from one trade:
+      an agent that keeps hurting (${15}+ trades, under 40% helped) sends the review board in early, and the board changes a vote
+      only if 6 months of backtest prove it better.</div>
+    ${d.win_patterns.length ? `<div><b class="up">What our wins have in common</b><ul class="btlines">${d.win_patterns.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${d.lessons.length ? `<div><b class="dn">What keeps losing</b><ul class="btlines">${d.lessons.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`
+      : `<div class="meta">No repeated loss pattern yet.</div>`}
+    ${weak.length ? `<div class="warn" style="margin:6px 0">Weak vote: ${weak.map(a => name(a.agent)).join(", ")}. The review board will re-test it
+      (early run at most every 3 days); it changes only if the backtest proves it.</div>` : ""}
+    <div class="sect" style="margin-top:10px">Agent scorecard · did its vote help?</div>
+    <table class="lvtable"><tr><th>Agent</th><th>Helped</th><th>Hurt</th><th>Right</th><th></th></tr>${agents}</table>
+    <div class="meta">Helped = it voted for a winner or against a loser. Hurt = for a loser or against a winner.</div>
+    <div class="sect" style="margin-top:10px">What wins · win rate by condition</div>
+    <table class="lvtable"><tr><th>Condition</th><th>Trades</th><th>Won</th><th>Avg</th></tr>${conds}</table>
+    ${d.live.length ? `<div class="sect" style="margin-top:10px">Live demo trades</div><ul class="btlines">${d.live.slice(0, 8).map(row).join("")}</ul>` : ""}
+    <details style="margin-top:8px"><summary class="meta">Latest backtest trades (${d.n_backtest})</summary><ul class="btlines">${d.recent_backtest.map(row).join("")}</ul></details>
+    <div class="meta" style="margin-top:6px">Updated ${new Date(d.made_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · after every analysis</div>`;
+}
+trvLoad();
+setInterval(trvLoad, 5 * 60000);
 </script>
+<div id="orbWrap" class="orbwrap" aria-hidden="true"><canvas id="orbCanvas" width="560" height="560"></canvas>
+  <div class="orbt">Running every agent again…</div><div id="orbStep" class="orbs"></div></div>
 <script src="/journal.js"></script>
 </body>
 </html>

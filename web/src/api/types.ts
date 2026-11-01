@@ -163,12 +163,31 @@ export type PhaseRules = {
   max_loss_type: string; min_days: number; consistency_pct: number | null; profit_split?: number | null
 }
 export type AccountRules = { phases: PhaseRules[]; funded: PhaseRules; reset: string; daily_base: string }
+export type RRStats = {
+  n_with_stop: number; n_without_stop: number; avg_planned: number | null; avg_achieved: number | null
+  avg_win_r: number | null; avg_loss_r: number | null; breakeven_win_rate: number | null; win_rate: number | null
+  expectancy_usd: number | null; expectancy_r: number | null; hit_target: number; with_target: number
+  dist: { label: string; n: number }[]
+}
+export type Consistency = {
+  limit_pct: number | null; best_day: { day: string; pnl: number } | null; best_day_share: number | null; ok: boolean | null
+  profit_needed: number | null; win_days: number; loss_days: number; avg_win_day: number | null; avg_loss_day: number | null
+  worst_day: number | null; biggest_trade_share: number | null; avg_lots: number | null; max_lots: number | null
+  min_lots: number | null; lot_spread: number | null
+}
+export type PhaseStats = {
+  n: number; open: number; wins: number; losses: number; win_rate: number | null; avg_win: number | null; avg_loss: number | null
+  profit_factor: number | null; best: number | null; worst: number | null; avg_r: number | null
+  followed_plan_pct: number | null; followed_pnl: number | null; broke_pnl: number | null
+  by_setup: { setup: string; n: number; pnl: number; win_rate: number }[]
+  by_emotion: { emotion: string; n: number; pnl: number }[]
+}
 export type PhaseCheck = {
   rules: PhaseRules; status: string; breach: { text: string } | null; balance: number; profit: number
   target_amt: number | null; target_left: number | null; days_traded: number; min_days: number
   daily_limit: number | null; today_pnl: number; daily_room: number | null; max_floor: number | null; max_room: number | null
   equity: [number, number][]; days: { day: string; pnl: number; n: number }[]
-  rr: Record<string, unknown>; consistency: Record<string, unknown>; stats: Record<string, unknown>
+  rr: RRStats; consistency: Consistency; stats: PhaseStats
 }
 export type Phase = {
   id: number; account_id: number; idx: number; name: string; start_balance: number; started_at: number
@@ -193,7 +212,7 @@ export type JournalAccounts = { accounts: JournalAccount[]; now: number }
 export type JournalTrades = { trades: JournalTrade[] }
 export type TradeFilters = { account_id?: number; side?: Side | ''; phase_id?: number }
 /** Body for creating/editing a journal trade (shape built by the old tradeBody()). */
-export type TradeBody = Record<string, unknown> & { account_id?: number; opened_at?: number }
+export type TradeBody = Record<string, unknown> & { account_id?: number; opened_at?: number | null }
 export type AccountBody = { name: string; firm?: string; size?: number; notes?: string; rules?: Partial<AccountRules> | Record<string, unknown>; archived?: boolean }
 export type SaveReply = OkResult & { id?: number }
 export type AdvanceBody = { result: string; note?: string; next_balance?: number | null }

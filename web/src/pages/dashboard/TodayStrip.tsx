@@ -43,7 +43,7 @@ export default function TodayStrip({ demo, accounts }: { demo: Demo | undefined;
       {plan.kind === 'now' ? (
         <>
           <Meta>Entry {price(((plan.entry_lo ?? 0) + (plan.entry_hi ?? 0)) / 2)} · stop {price(plan.stop)} · half {price(plan.be_at)} · target {price(plan.t1)}</Meta>
-          <Link to="/journal" className={`inline-block ${btnPrimary}`}>＋ Add to my journal</Link>
+          <Link to="/journal?call=1" className={`inline-block ${btnPrimary}`}>＋ Add to my journal</Link>
         </>
       ) : <Meta cls="line-clamp-2">{c.headline || ''}</Meta>}
       <Link to="/trade" className={`inline-block ${btn}`}>Chart dashboard →</Link>

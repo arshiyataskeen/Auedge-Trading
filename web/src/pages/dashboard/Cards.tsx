@@ -8,7 +8,7 @@ export const TONE = { up: 'text-up', dn: 'text-down', '': '' } as const
 export const usd = (v: number | null | undefined) => money(v, { sign: false })
 
 /** Old STATUS map: [badge colour, text]. */
-const STATUS: Record<string, [Side, string]> = {
+export const STATUS: Record<string, [Side, string]> = {
   active: ['NA', 'In progress'], target_reached: ['BUY', 'Target reached ✓'], need_days: ['NA', 'Target hit · more days needed'],
   breached: ['SELL', 'Rule broken'], passed: ['BUY', 'Passed'], failed: ['SELL', 'Failed'],
   need_consistency: ['NA', 'Target hit · consistency rule'],
@@ -23,7 +23,7 @@ export function Bias({ kind, children }: { kind: Side; children: ReactNode }) {
 }
 
 const FILL = { tgt: 'bg-up', room: 'bg-[#5b8cff]', warnb: 'bg-warn' } as const
-function Bar({ pct, cls }: { pct: number; cls: keyof typeof FILL }) {
+export function Bar({ pct, cls }: { pct: number; cls: keyof typeof FILL }) {
   return (
     <div className="mt-1 h-[7px] overflow-hidden rounded bg-panel2">
       <span className={`block h-full rounded ${FILL[cls]}`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
@@ -63,11 +63,11 @@ function Head({ title, sub, badge }: { title: string; sub: ReactNode; badge: Rea
     </div>
   )
 }
-const Chip = ({ children }: { children: ReactNode }) => (
+export const Chip = ({ children }: { children: ReactNode }) => (
   <span className="rounded border border-line bg-panel2 px-1.5 py-0.5 text-[11px] text-strong">{children}</span>
 )
 
-function Meters({ a, c }: { a: JournalAccount; c: PhaseCheck }) {
+export function Meters({ a, c }: { a: JournalAccount; c: PhaseCheck }) {
   const out: ReactNode[] = []
   if (c.target_amt != null) {
     out.push(<Meter key="t" label="Profit target" value={<span className={TONE[toneOf(c.profit)]}>{money(c.profit)}</span>} sub={`of ${usd(c.target_amt)}`}

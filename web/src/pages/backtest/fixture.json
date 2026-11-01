@@ -1,0 +1,389 @@
+{
+ "steps": [],
+ "params": {
+  "start": 1779753600,
+  "end": 1786752000,
+  "step": "15m (backup data)",
+  "spread": 0.3,
+  "target_rr": null,
+  "partial": true,
+  "account": 25000.0,
+  "lot": 0.1,
+  "news": true,
+  "adaptive": false,
+  "day_max_loss": 350.0,
+  "day_max_profit": 150.0,
+  "live_rules": true,
+  "stop_slip": 0.0,
+  "f_session": false,
+  "f_trend": false,
+  "f_htf": false,
+  "f_htf_strict": false,
+  "runner_rr": null,
+  "trail_r": null,
+  "min_conf": null,
+  "f_hunt": false,
+  "drop": null,
+  "cache": false,
+  "source": "trading_research backup: spot XAUUSD 1-minute candles"
+ },
+ "summary": {
+  "n": 61,
+  "wins": 30,
+  "losses": 31,
+  "win_rate": 49,
+  "avg_r": 0.02,
+  "total_r": 1.08,
+  "max_dd": 12.0,
+  "streak": 6,
+  "targets": 16,
+  "stops": 28,
+  "breakeven": 12,
+  "half_at_1r": 30,
+  "expired": 5
+ },
+ "usd": {
+  "account": 25000.0,
+  "lot": 0.1,
+  "total_usd": 679.88,
+  "end_balance": 25679.88,
+  "return_pct": 2.72,
+  "max_dd_usd": 2794.85,
+  "avg_usd": 11.15,
+  "best_usd": 615.87,
+  "worst_usd": -458.19,
+  "avg_risk_usd": 256.04
+ },
+ "groups": {
+  "BUY trades": {
+   "n": 9,
+   "wins": 4,
+   "losses": 5,
+   "win_rate": 44,
+   "avg_r": -0.1,
+   "total_r": -0.88,
+   "max_dd": 2.03,
+   "streak": 2,
+   "targets": 3,
+   "stops": 5,
+   "breakeven": 1,
+   "half_at_1r": 4,
+   "expired": 0
+  },
+  "SELL trades": {
+   "n": 52,
+   "wins": 26,
+   "losses": 26,
+   "win_rate": 50,
+   "avg_r": 0.04,
+   "total_r": 1.96,
+   "max_dd": 9.97,
+   "streak": 5,
+   "targets": 13,
+   "stops": 23,
+   "breakeven": 11,
+   "half_at_1r": 26,
+   "expired": 5
+  },
+  "BUY/SELL NOW plans": {
+   "n": 61,
+   "wins": 30,
+   "losses": 31,
+   "win_rate": 49,
+   "avg_r": 0.02,
+   "total_r": 1.08,
+   "max_dd": 12.0,
+   "streak": 6,
+   "targets": 16,
+   "stops": 28,
+   "breakeven": 12,
+   "half_at_1r": 30,
+   "expired": 5
+  },
+  "WAIT then BUY/SELL plans": {
+   "n": 0,
+   "wins": 0,
+   "losses": 0,
+   "win_rate": null,
+   "avg_r": null,
+   "total_r": 0,
+   "max_dd": 0.0,
+   "streak": 0,
+   "targets": 0,
+   "stops": 0,
+   "breakeven": 0,
+   "half_at_1r": 0,
+   "expired": 0
+  },
+  "Chief confidence >= 60%": {
+   "n": 61,
+   "wins": 30,
+   "losses": 31,
+   "win_rate": 49,
+   "avg_r": 0.02,
+   "total_r": 1.08,
+   "max_dd": 12.0,
+   "streak": 6,
+   "targets": 16,
+   "stops": 28,
+   "breakeven": 12,
+   "half_at_1r": 30,
+   "expired": 5
+  },
+  "Chief confidence >= 70%": {
+   "n": 45,
+   "wins": 24,
+   "losses": 21,
+   "win_rate": 53,
+   "avg_r": 0.12,
+   "total_r": 5.29,
+   "max_dd": 6.16,
+   "streak": 4,
+   "targets": 13,
+   "stops": 20,
+   "breakeven": 9,
+   "half_at_1r": 24,
+   "expired": 3
+  }
+ },
+ "agents": {
+  "elliott": {
+   "calls": 4094,
+   "hits": 1968,
+   "misses": 1642,
+   "flat": 484,
+   "unscored": 0,
+   "hit_rate": 55
+  },
+  "smc": {
+   "calls": 3850,
+   "hits": 1852,
+   "misses": 1542,
+   "flat": 440,
+   "unscored": 16,
+   "hit_rate": 55
+  },
+  "macro": {
+   "calls": 3491,
+   "hits": 1469,
+   "misses": 1583,
+   "flat": 439,
+   "unscored": 0,
+   "hit_rate": 48
+  }
+ },
+ "lines": [
+  "Data: your trading_research backup (spot XAUUSD 1-minute candles, resampled to 15m/1H/Daily), not the live futures cache. DXY, silver and S&P 500 come from the cache, so the period is limited to where both exist.",
+  "Tested period: Tue 26 May 00:00 UTC to Fri 14 Aug 21:00 UTC (about 81 days, 5389 analyses, one every 15 minutes)."
+ ],
+ "counts": {
+  "steps": 5389,
+  "now": 1862
+ },
+ "equity": [
+  [
+   1780668000,
+   615.87
+  ],
+  [
+   1780897500,
+   1041.76
+  ],
+  [
+   1781006400,
+   1132.07
+  ],
+  [
+   1781019900,
+   1597.65
+  ],
+  [
+   1781072100,
+   1761.24
+  ],
+  [
+   1783357200,
+   1843.54
+  ],
+  [
+   1783424700,
+   1664.07
+  ],
+  [
+   1783578600,
+   1412.13
+  ],
+  [
+   1783700100,
+   1258.26
+  ],
+  [
+   1783930500,
+   1382.94
+  ]
+ ],
+ "trades": [
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1780618500,
+   "entry_t": 1780618500,
+   "entry": 4454.95,
+   "stop": 4489.75,
+   "t1": 4366.05,
+   "exit_t": 1780668000,
+   "exit": 4366.35,
+   "why": "target after half at 1R",
+   "r": 1.77,
+   "conf": 78,
+   "usd": 615.87,
+   "balance": 26616.41
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1780883100,
+   "entry_t": 1780883100,
+   "entry": 4325.6,
+   "stop": 4360.23,
+   "t1": 4274.41,
+   "exit_t": 1780897500,
+   "exit": 4274.71,
+   "why": "target after half at 1R",
+   "r": 1.23,
+   "conf": 85,
+   "usd": 425.89,
+   "balance": 27042.3
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1780984800,
+   "entry_t": 1780984800,
+   "entry": 4342.89,
+   "stop": 4361.7,
+   "t1": 4268.12,
+   "exit_t": 1781006400,
+   "exit": 4343.19,
+   "why": "breakeven after half at 1R",
+   "r": 0.48,
+   "conf": 82,
+   "usd": 90.31,
+   "balance": 27132.61
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1781013600,
+   "entry_t": 1781013600,
+   "entry": 4328.14,
+   "stop": 4361.64,
+   "t1": 4268.12,
+   "exit_t": 1781019900,
+   "exit": 4268.42,
+   "why": "target after half at 1R",
+   "r": 1.39,
+   "conf": 83,
+   "usd": 465.58,
+   "balance": 27598.19
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1781048700,
+   "entry_t": 1781048700,
+   "entry": 4217.97,
+   "stop": 4251.36,
+   "t1": 4098.27,
+   "exit_t": 1781072100,
+   "exit": 4218.27,
+   "why": "breakeven after half at 1R",
+   "r": 0.49,
+   "conf": 85,
+   "usd": 163.59,
+   "balance": 27761.78
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1783334700,
+   "entry_t": 1783334700,
+   "entry": 4153.89,
+   "stop": 4171.03,
+   "t1": 4120.78,
+   "exit_t": 1783357200,
+   "exit": 4154.19,
+   "why": "breakeven after half at 1R",
+   "r": 0.48,
+   "conf": 67,
+   "usd": 82.3,
+   "balance": 26967.74
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1783402200,
+   "entry_t": 1783402200,
+   "entry": 4127.68,
+   "stop": 4145.27,
+   "t1": 4100.0,
+   "exit_t": 1783424700,
+   "exit": 4145.57,
+   "why": "stop",
+   "r": -1.02,
+   "conf": 83,
+   "usd": -179.47,
+   "balance": 26654.9
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1783548900,
+   "entry_t": 1783548900,
+   "entry": 4076.44,
+   "stop": 4101.39,
+   "t1": 4021.53,
+   "exit_t": 1783578600,
+   "exit": 4101.69,
+   "why": "stop",
+   "r": -1.01,
+   "conf": 76,
+   "usd": -251.94,
+   "balance": 26211.05
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1783694700,
+   "entry_t": 1783694700,
+   "entry": 4098.55,
+   "stop": 4113.64,
+   "t1": 4050.0,
+   "exit_t": 1783700100,
+   "exit": 4113.94,
+   "why": "stop",
+   "r": -1.02,
+   "conf": 69,
+   "usd": -153.87,
+   "balance": 26057.18
+  },
+  {
+   "side": "SELL",
+   "kind": "now",
+   "decided_t": 1783902600,
+   "entry_t": 1783902600,
+   "entry": 4074.01,
+   "stop": 4099.46,
+   "t1": 4021.53,
+   "exit_t": 1783930500,
+   "exit": 4074.31,
+   "why": "breakeven after half at 1R",
+   "r": 0.49,
+   "conf": 67,
+   "usd": 124.68,
+   "balance": 26181.86
+  }
+ ],
+ "made_at": 1793460749.0046005,
+ "id": "bt_20261031_210229"
+}

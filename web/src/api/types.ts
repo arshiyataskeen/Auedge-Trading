@@ -81,7 +81,7 @@ export type BacktestInfo = {
   runs: BtRunInfo[]
 }
 export type BacktestStatus = {
-  running: boolean; id?: string; kind?: string; progress?: number; pct?: number; message?: string
+  running: boolean; id?: string; kind?: string; progress?: { done: number; total: number; phase?: string }; elapsed?: number; pct?: number; message?: string
   done?: boolean; error?: string; [k: string]: unknown
 }
 export type Candle = { t: number; o: number; h: number; l: number; c: number }

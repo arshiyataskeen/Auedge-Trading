@@ -104,16 +104,11 @@ def build_quality(ctx, rep, side: str, plan: dict | None = None, flag=None) -> t
     if st:
         want = "aligned_up" if side == "BUY" else "aligned_down"
         F["align"] = _f(st == want, al.get("text") or st)
-    # sweep -> break of structure (15m): a stop hunt against the trade's side plus a 15m break its way
+    # sweep -> candle-close break of structure (15m, closed candles): see core/intel/structure_q.py
     try:
-        from core.structure import last_bos, zigzag
-        hunt = rep.recent_hunt
-        swept = bool(hunt and hunt.side == ("sell" if side == "BUY" else "buy"))
-        b = last_bos(c15, zigzag(c15, 2.0)) if len(c15) >= 30 else None
-        brk = bool(b and b[0] >= len(c15) - 8 and b[1] == ("UP" if side == "BUY" else "DOWN"))
-        F["sweep_bos"] = _f(swept and brk, "Stops were hunted and 15m then broke the trade's way." if swept and brk
-                            else "Stop hunt seen, but no 15m break yet." if swept
-                            else "15m break, but no stop hunt before it." if brk else "No stop hunt followed by a break.")
+        from core.intel.structure_q import analyze
+        sq = analyze(c15, side)
+        F["sweep_bos"] = _f(sq.ok, sq.text) if len(c15) >= 30 else _f(None, NA)
     except Exception:  # noqa: BLE001
         pass
     try:

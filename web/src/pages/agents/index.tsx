@@ -8,10 +8,11 @@ import Tabs from '../../components/Tabs'
 import AgentGrid from './AgentCard'
 import ReviewBoard from './ReviewBoard'
 import QualityCard from '../../components/QualityCard'
+import Flow from './Flow'
 import TrackRecord from './TrackRecord'
 import TradeReviewer from './TradeReviewer'
 
-const TABS = [{ key: 'agents', label: 'Agents' }, { key: 'track', label: 'Track record' }]
+const TABS = [{ key: 'agents', label: 'Agents' }, { key: 'track', label: 'Track record' }, { key: 'flow', label: 'How it works' }]
 
 /** Old aStatus line: when the analysis ran, the data check, Claude summary, adapter problems. */
 function Status({ d }: { d: Analysis }) {
@@ -30,9 +31,9 @@ function Status({ d }: { d: Analysis }) {
 /** /agents: review board, trade reviewer and agent cards; the "Track record" tab (old Track tab) holds weights and scored calls. */
 export default function AgentsPage() {
   const [sp, setSp] = useSearchParams()
-  const tab = sp.get('tab') === 'track' ? 'track' : 'agents'
+  const t = sp.get('tab'), tab = t === 'track' || t === 'flow' ? t : 'agents'
   const analysis = useAnalysis()
-  const onTab = (k: string) => setSp((p) => { if (k === 'track') p.set('tab', 'track'); else p.delete('tab'); return p }, { replace: true })
+  const onTab = (k: string) => setSp((p) => { if (k === 'track' || k === 'flow') p.set('tab', k); else p.delete('tab'); return p }, { replace: true })
 
   return (
     <div>
@@ -48,6 +49,7 @@ export default function AgentsPage() {
         <div className="pt-3">
           <QueryCard query={analysis} title="Track record">{(d) => <TrackRecord d={d} />}</QueryCard>
         </div>
+        <Flow />
       </Tabs>
     </div>
   )

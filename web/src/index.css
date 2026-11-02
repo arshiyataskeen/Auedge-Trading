@@ -32,3 +32,8 @@ h1, h2 { letter-spacing: -0.02em; }
 .ticker-track { animation: ticker 45s linear infinite; }
 .ticker:hover .ticker-track { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none; } .ticker { overflow-x: auto; } }
+
+@keyframes flow-dot { from { transform: translate(0, 0); opacity: 1 } to { transform: translate(var(--dx), var(--dy)); opacity: 0 } }
+.flow-dot { animation: flow-dot 0.9s linear infinite; --dx: 28px; --dy: 0px }
+@media (max-width: 767px) { .flow-dot { --dx: 0px; --dy: 22px } }
+@media (prefers-reduced-motion: reduce) { .flow-dot { animation: none } }

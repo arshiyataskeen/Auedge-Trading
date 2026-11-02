@@ -4,7 +4,7 @@ import { xausGet } from './xaus'
 import type {
   SeparationRow,
   AccountBody, AdvanceBody, Analysis, BacktestInfo, BacktestStatus, BtResult, CalendarDayDetail, CalendarResp, Calls,
-  Candles, Demo, DemoMonth, HealthLatest, JournalAccount, JournalAccounts, JournalTrades, News, OkResult, Review,
+  Candles, IntelFlag, Demo, DemoMonth, HealthLatest, JournalAccount, JournalAccounts, JournalTrades, News, OkResult, Review,
   RunBody, RunReply, SaveReply, TradeBody, TradeFilters, TradeReview, XausChart, XausIntraday,
 } from './types'
 
@@ -256,3 +256,7 @@ export const useDeleteTrade = () =>
 /** GET /api/agents/separation: read-only signal-separation check per agent. */
 export const useSeparation = () =>
   useQuery({ queryKey: ['agents', 'separation'] as const, queryFn: () => getJSON<SeparationRow[]>('/api/agents/separation'), staleTime: 10 * 60_000 })
+
+/** GET /api/intel/flags: which quality filters are on. */
+export const useIntelFlags = () =>
+  useQuery({ queryKey: ['intel', 'flags'], queryFn: () => getJSON<{ flags: IntelFlag[] }>('/api/intel/flags'), refetchInterval: 60_000 })
